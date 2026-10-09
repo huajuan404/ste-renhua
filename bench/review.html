@@ -1,0 +1,171 @@
+<div id="rewrite-review">
+  <div class="viz-row"><h2>需要你裁决的信息变化</h2><span class="viz-badge" id="review-model">模型标记 · 尚未确认</span></div>
+  <div id="review-summary" class="text-muted"></div>
+  <div class="nav nav-pills" role="tablist" aria-label="裁决类型">
+    <button class="nav-link active" id="review-info-tab" role="tab" aria-controls="review-info" aria-selected="true" type="button">信息变化 · 优先</button>
+    <button class="nav-link" id="review-reading-tab" role="tab" aria-controls="review-reading" aria-selected="false" type="button">阅读感受 · 可选</button>
+  </div>
+  <section id="review-info" role="tabpanel" aria-labelledby="review-info-tab">
+    <div class="viz-controls"><label class="form-label">问题索引<select id="review-select" class="form-select"></select></label></div>
+    <div class="viz-row"><span id="review-position" class="tabular-nums"></span><button class="btn" id="review-prev" type="button">上一条</button><button class="btn" id="review-next" type="button">下一条</button></div>
+    <div id="review-title" class="review-heading"></div>
+    <div class="review-columns">
+      <section><h3>原稿</h3><div id="review-original" class="review-text"></div></section>
+      <section><h3>改写稿</h3><div id="review-rewritten" class="review-text"></div></section>
+    </div>
+    <details id="review-full"><summary>核对两篇全文</summary><div class="review-columns"><section><h3>原稿全文</h3><div id="review-original-full" class="review-text"></div></section><section><h3>改写全文</h3><div id="review-rewritten-full" class="review-text"></div></section></div></details>
+    <details><summary>机器提取的信息单元</summary><div id="review-unit" class="review-text"></div></details>
+    <hr>
+    <div class="review-heading">模型为什么标记</div><div id="review-reason"></div>
+    <div class="review-heading">你的裁决：信息或语气有没有改变？</div>
+    <div id="review-choices" class="viz-row">
+      <button class="btn" type="button" data-decision="changed" data-tooltip="再次点击可撤回选择" aria-pressed="false">确有信息变化</button>
+      <button class="btn" type="button" data-decision="equivalent" data-tooltip="再次点击可撤回选择" aria-pressed="false">信息没变</button>
+      <button class="btn" type="button" data-decision="uncertain" data-tooltip="再次点击可撤回选择" aria-pressed="false">暂不确定</button>
+    </div>
+    <label class="form-label">原因（可选，最多 120 字）<textarea class="form-control" id="review-note" rows="2" maxlength="120"></textarea></label>
+    <div id="review-decision" aria-live="polite"></div>
+  </section>
+  <section id="review-reading" role="tabpanel" aria-labelledby="review-reading-tab" hidden>
+    <div class="viz-controls"><label class="form-label">原稿索引<select class="form-select" id="review-reading-select"></select></label></div>
+    <div class="review-heading">只看这两篇，哪一版更好懂？</div>
+    <div id="review-reading-choices" class="viz-row">
+      <button class="btn" type="button" data-reading="original" aria-pressed="false">原稿更好懂</button>
+      <button class="btn" type="button" data-reading="rewrite" aria-pressed="false">实验提示更好懂</button>
+      <button class="btn" type="button" data-reading="similar" aria-pressed="false">差不多</button>
+      <button class="btn" type="button" data-reading="neither" aria-pressed="false">都难懂</button>
+    </div>
+    <div class="review-columns"><section><h3>原稿</h3><div id="review-reading-original" class="review-text"></div></section><section><h3>实验提示 probe-v1</h3><div id="review-reading-rewrite" class="review-text"></div></section></div>
+  </section>
+  <hr>
+  <div id="review-progress" aria-live="polite" class="tabular-nums"></div>
+  <div class="viz-row"><button class="btn" type="button" id="review-results">汇总裁决</button><button class="btn btn-primary" type="button" id="review-send">把裁决发给 Codex</button></div>
+  <div id="review-message" aria-live="polite"></div>
+  <label id="review-result-label" class="form-label" hidden>裁决记录（可复制）<textarea id="review-result" class="form-control" rows="6" readonly></textarea></label>
+  <script type="application/json" id="rewrite-review-data">__REVIEW_DATA__</script>
+</div>
+<style>
+#rewrite-review { color: var(--foreground); }
+#rewrite-review .review-columns { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin:16px 0; }
+#rewrite-review .review-text { white-space:pre-wrap;overflow-wrap:anywhere; }
+#rewrite-review .review-heading { margin:16px 0 8px;font-weight:500; }
+#rewrite-review mark { background:color-mix(in srgb,var(--yellow) 22%,transparent);color:var(--foreground); }
+#rewrite-review details { margin:12px 0; }
+#rewrite-review h2 { margin-right:96px; }
+#rewrite-review section { min-width:0; }
+#rewrite-review [hidden] { display:none; }
+@media(max-width:600px) { #rewrite-review .review-columns { grid-template-columns:minmax(0,1fr);gap:12px; } }
+</style>
+<script>
+(() => {
+  const root=document.getElementById('rewrite-review');
+  const data=JSON.parse(document.getElementById('rewrite-review-data').textContent);
+  const $=id=>root.querySelector('#'+id);
+  const labels={identity:'原稿对照',none:'基础改写',oneliner:'一句话','ste-zh':'ste-zh','probe-v1':'实验提示'};
+  const decisions={changed:'确有信息变化',equivalent:'信息没变',uncertain:'暂不确定'};
+  const readingLabels={original:'原稿更好懂',rewrite:'实验提示更好懂',similar:'差不多',neither:'都难懂'};
+  const knownIds=new Set(data.issues.map(x=>x.id));
+  const knownCases=new Set(data.cases.map(x=>x.id));
+  let selected=data.issues[0]?.id || '',readingCase=data.cases[0]?.id || '';
+  let choices={},notes={},reading={};
+  const select=$('review-select');
+  for(const source of data.cases){
+    const items=data.issues.filter(x=>x.case===source.id);
+    if(!items.length)continue;
+    const group=document.createElement('optgroup');group.label=source.title+' · '+items.length+' 处';
+    for(const issue of items){const option=document.createElement('option');option.value=issue.id;option.textContent=issue.id+' · '+labels[issue.cond]+' · '+(issue.kind==='addition'?'疑似新增':'疑似歪曲')+' · '+issue.unit_id;group.append(option);}
+    select.append(group);
+  }
+  for(const source of data.cases){const option=document.createElement('option');option.value=source.id;option.textContent=source.title; $('review-reading-select').append(option);}
+  const counts={distorted:data.issues.filter(x=>x.kind==='distorted').length,addition:data.issues.filter(x=>x.kind==='addition').length,missing:data.issues.filter(x=>x.kind==='missing').length};
+  $('review-model').textContent=[...new Set(data.issues.map(x=>x.model))].map(x=>x==='opus'?'Opus':x==='codex'?'Codex':x).join(' / ')+' 标记 · 尚未确认';
+  $('review-summary').textContent=data.issues.length+' 处 · 涉及 '+new Set(data.issues.map(x=>x.stem)).size+' 篇改写稿 · 疑似歪曲 '+counts.distorted+' / 新增 '+counts.addition+' / 丢失 '+counts.missing;
+
+  function range(text,quote){
+    if(!quote)return null;
+    const exact=text.indexOf(quote);if(exact>=0)return [exact,exact+quote.length];
+    let compact='',positions=[],offset=0;
+    for(const char of text){if(!/\s/u.test(char)){compact+=char;for(let j=0;j<char.length;j++)positions.push(offset+j);}offset+=char.length;}
+    const needle=quote.replace(/\s/gu,'');const pos=compact.indexOf(needle);
+    return pos<0||!needle?null:[positions[pos],positions[pos+needle.length-1]+1];
+  }
+  function excerpt(target,text,quote,full=false){
+    target.replaceChildren();const found=range(text,quote);
+    if(!found){target.textContent=text;return;}
+    const [a,b]=found;let start=full?0:Math.max(0,a-160),end=full?text.length:Math.min(text.length,b+160);
+    if(!full&&start){const boundary=text.indexOf('\n',start);if(boundary>=start&&boundary<a)start=boundary+1;}
+    if(!full&&end<text.length){const boundary=text.indexOf('\n',end);if(boundary>=end&&boundary<end+80)end=boundary;}
+    if(start)target.append(document.createTextNode('…\n'));
+    target.append(document.createTextNode(text.slice(start,a)));
+    const mark=document.createElement('mark');mark.textContent=text.slice(a,b);target.append(mark);
+    target.append(document.createTextNode(text.slice(b,end)));
+    if(end<text.length)target.append(document.createTextNode('\n…'));
+  }
+  function snapshot(){return {manifest_hash:data.manifest_hash,review_data_hash:data.review_data_hash,
+    judgments:data.issues.filter(x=>choices[x.id]||notes[x.id]).map(x=>({id:x.id,decision:choices[x.id]||'pending',note:notes[x.id]||''})),
+    reading:data.cases.filter(x=>reading[x.id]).map(x=>({case:x.id,preference:reading[x.id]}))};}
+  function save(){
+    const api=window.openai;
+    if(api&&typeof api.setWidgetState==='function')Promise.resolve(api.setWidgetState({modelContent:snapshot(),privateContent:{selected,readingCase}})).catch(()=>{$('review-message').textContent='自动保存未成功，可用“汇总裁决”复制记录。';});
+  }
+  function progress(){
+    $('review-progress').textContent='信息变化：已裁决 '+Object.keys(choices).length+'/'+data.issues.length+'；阅读感受：'+Object.keys(reading).length+'/'+data.cases.length+'（可选）';
+    $('review-result').value=JSON.stringify(snapshot(),null,2);
+  }
+  function render(){
+    const issue=data.issues.find(x=>x.id===selected);if(!issue)return;
+    const source=data.cases.find(x=>x.id===issue.case), draft=data.drafts.find(x=>x.stem===issue.stem);
+    const index=data.issues.indexOf(issue);
+    select.value=issue.id;$('review-position').textContent=(index+1)+' / '+data.issues.length;
+    $('review-prev').disabled=index===0;$('review-next').disabled=index===data.issues.length-1;
+    $('review-title').textContent=issue.id+' · '+source.title+' · '+labels[issue.cond]+' · '+issue.unit_id+' · '+issue.model;
+    excerpt($('review-original'),source.text,issue.original_quote);
+    excerpt($('review-rewritten'),draft.text,issue.quote);
+    excerpt($('review-original-full'),source.text,issue.original_quote,true);
+    excerpt($('review-rewritten-full'),draft.text,issue.quote,true);
+    $('review-unit').textContent=issue.unit_text||'模型没有给出原稿对应单元。请核对原稿全文，判断这项新增内容是否可直接推知。';
+    $('review-reason').textContent=issue.note;
+    $('review-note').value=notes[issue.id]||'';
+    for(const btn of root.querySelectorAll('[data-decision]'))btn.setAttribute('aria-pressed',String(choices[issue.id]===btn.dataset.decision));
+    $('review-decision').textContent=choices[issue.id]?'你的裁决：'+decisions[choices[issue.id]]:'尚未裁决';progress();
+  }
+  function renderReading(){
+    const source=data.cases.find(x=>x.id===readingCase);if(!source)return;
+    const draft=data.drafts.find(x=>x.case===source.id&&x.cond==='probe-v1');
+    $('review-reading-select').value=source.id;
+    $('review-reading-original').textContent=source.text;
+    $('review-reading-rewrite').textContent=draft?draft.text:'这批运行没有实验提示改写稿';
+    for(const btn of root.querySelectorAll('[data-reading]')){btn.disabled=!draft;btn.setAttribute('aria-pressed',String(reading[source.id]===btn.dataset.reading));}
+    progress();
+  }
+  function applyState(state){
+    const content=state?.modelContent;
+    if(!content||content.manifest_hash!==data.manifest_hash||content.review_data_hash!==data.review_data_hash)return;
+    choices={};notes={};reading={};
+    for(const item of content.judgments||[]){if(!knownIds.has(item.id))continue;if(decisions[item.decision])choices[item.id]=item.decision;if(typeof item.note==='string')notes[item.id]=item.note.slice(0,120);}
+    for(const item of content.reading||[])if(knownCases.has(item.case)&&readingLabels[item.preference])reading[item.case]=item.preference;
+    const ui=state.privateContent||{};if(knownIds.has(ui.selected))selected=ui.selected;if(knownCases.has(ui.readingCase))readingCase=ui.readingCase;
+    render();renderReading();
+  }
+  function changeIssue(id){selected=id;$('review-full').open=false;render();save();}
+  select.addEventListener('change',()=>changeIssue(select.value));
+  $('review-prev').addEventListener('click',()=>changeIssue(data.issues[data.issues.findIndex(x=>x.id===selected)-1].id));
+  $('review-next').addEventListener('click',()=>changeIssue(data.issues[data.issues.findIndex(x=>x.id===selected)+1].id));
+  for(const btn of root.querySelectorAll('[data-decision]'))btn.addEventListener('click',()=>{if(choices[selected]===btn.dataset.decision)delete choices[selected];else choices[selected]=btn.dataset.decision;render();save();});
+  $('review-note').addEventListener('input',()=>{notes[selected]=$('review-note').value;progress();save();});
+  $('review-reading-select').addEventListener('change',()=>{readingCase=$('review-reading-select').value;renderReading();save();});
+  for(const btn of root.querySelectorAll('[data-reading]'))btn.addEventListener('click',()=>{if(reading[readingCase]===btn.dataset.reading)delete reading[readingCase];else reading[readingCase]=btn.dataset.reading;renderReading();save();});
+  $('review-results').addEventListener('click',()=>{$('review-result-label').hidden=false;progress();});
+  $('review-send').addEventListener('click',async()=>{
+    if(!Object.keys(choices).length&&!Object.keys(reading).length){$('review-message').textContent='先选择至少一项裁决。';return;}
+    const api=window.openai;
+    if(!api||typeof api.sendFollowUpMessage!=='function'){$('review-result-label').hidden=false;progress();$('review-message').textContent='复制下面的裁决记录发给 Codex，即可落盘。';return;}
+    $('review-send').disabled=true;
+    try{await api.sendFollowUpMessage({prompt:'请将这些人工裁决保存到本地裁决记录，保留原模型判分，并据此重新汇总。数据来自 '+data.data_path+'。这里只提交已选项目，其余仍待裁决。\n'+JSON.stringify(snapshot()),title:'将本次裁决交给 Codex'});$('review-message').textContent='已请求发送；以聊天中新消息为准，裁决尚未自动写入本地文件。';}
+    catch(error){$('review-result-label').hidden=false;progress();$('review-message').textContent='发送未成功，可复制裁决记录。';}
+    finally{$('review-send').disabled=false;}
+  });
+  render();renderReading();applyState(window.openai?.widgetState);
+  window.addEventListener('openai:set_globals',event=>{if(event.detail?.globals?.widgetState)applyState(event.detail.globals.widgetState);});
+})();
+</script>

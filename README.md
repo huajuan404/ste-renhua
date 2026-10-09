@@ -92,6 +92,14 @@ python3 bench/run.py express --out /path/to/private/run --judges opus
 python3 bench/rewrite.py score --out /path/to/private/run --express
 ```
 
+人工复核可用原稿/改写并排对照，保留全文、机器提取的信息单元和判分理由：
+
+```bash
+python3 bench/render_review.py --from /path/to/private/run --out /path/to/private/review
+```
+
+输出用于会话内展示的交互片段 `rewrite-adjudication.html` 和对应数据 `review-data.json`，都包含私有原文，只放在本地私有目录，不提交或公开发布。每处标记可裁决为“确有信息变化 / 信息没变 / 暂不确定”，也可选做原稿与实验提示的阅读感受对比。界面选择可在会话中暂存，但不会自动写入本地文件；用“把裁决发给 Codex”提交已选项目，或复制“汇总裁决”的 JSON 再交给 Codex 落盘。记录带运行和对照数据哈希，未选择的项仍待裁决，原模型判分保留。
+
 `calibrate` 要求两个判分器逐单元的状态、清单外变化数、加料数全部符合预设答案，差异会以非零退出。公开对照包含删除建议、建议变命令、提高确定性、改单位、扩大条件、删除未验证状态、新增建议；这些有限例子不能证明复杂文本上没有漏报或误报。
 
 原稿未附带此前对话，改写任务禁止猜测原稿中没有解释的代号。需要外部上下文才能解释的说法，不能靠这次评测证明已经解决。私有原稿及模型输出留在仓库外；本地试验只用 Claude 处理这些内容。
