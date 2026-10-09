@@ -64,7 +64,7 @@ def call_claude(model, prompt, system=None, append=None, timeout=900):
     except Exception:
         raise RuntimeError(f"claude 输出无法解析: {p.stdout[:200]!r} {p.stderr[:200]!r}")
     if result.get("is_error") or not result.get("result"):
-        raise RuntimeError(f"claude 调用失败: {str(result)[:300]}")
+        raise RuntimeError(f"claude 调用失败: {str(result.get('result') or result.get('errors') or result)[:300]}")
     return result["result"], {"models": sorted(result.get("modelUsage") or {}),
                               "cost_usd": result.get("total_cost_usd")}
 
@@ -186,6 +186,8 @@ def run_pool(work, jobs, workers):
             done += 1
             if done % 10 == 0 or done == len(jobs):
                 print(f"进度 {done}/{len(jobs)}，失败 {failed}", flush=True)
+    if failed:
+        sys.exit(1)
 
 
 # ---------- 提示 ----------
@@ -304,7 +306,13 @@ def squash(text):
 
 def cmd_gen(a):
     out = Path(a.out)
-    conds = [c for c in load(a.conditions) if not a.conds or c["id"] in a.conds]
+    all_conds = load(a.conditions)
+    unknown = set(a.conds or []) - {c["id"] for c in all_conds}
+    if unknown:
+        sys.exit(f"没有这些写法：{'、'.join(sorted(unknown))}")
+    conds = [c for c in all_conds if not a.conds or c["id"] in a.conds]
+    if not conds:
+        sys.exit("写作指令清单为空")
     texts = {c["id"]: condition_text(c) for c in conds}
     jobs = [(out / "gen" / f"{case['id']}__{cond['id']}__r{r}.json", case, cond["id"], r)
             for case in load_cases(a.cases) for cond in conds for r in range(1, a.runs + 1)]
@@ -350,6 +358,9 @@ def cmd_judge(a):
                      "labeled": x.get("labeled") is True, "note": x.get("note", ""),
                      "quote_ok": squash(x.get("quote") or "") in body}
                     for x in data.get("additions", [])]
+            cited = [f for f in facts if f["status"] != "missing"] + adds
+            if any(not x["quote"] or not x["quote_ok"] for x in cited):
+                raise ValueError("判分引文为空或不是成稿原文")
             return {"facts": facts, "additions": adds, "meta": meta}
 
         save(path, retry(once))
@@ -376,7 +387,7 @@ def cmd_express(a):
                              system=EXPRESS_SYS)
             d = parse_json(raw)
             got = {x["term"]: x for x in d.get("labels", [])}
-            return {
+            result = {
                 "labels": [{"term": t, "explained": got[t]["explained"] is True, "quote": got[t].get("quote") or ""}
                            for t in terms],
                 "hard": [{"quote": x.get("quote") or "", "kind": x["kind"] if x.get("kind") in HARD_KINDS else "jargon",
@@ -387,6 +398,11 @@ def cmd_express(a):
                 "winding": [{"quote": x.get("quote") or "", "note": x.get("note", "")} for x in d.get("winding", [])],
                 "meta": meta,
             }
+            quotes = [x["quote"] for key in ("hard", "fillers", "winding") for x in result[key]]
+            quotes += [x[key] for x in result["repeats"] for key in ("first", "again")]
+            if any(not q or squash(q) not in squash(gen["text"]) for q in quotes):
+                raise ValueError("表达判分引文为空或不是成稿原文")
+            return result
 
         save(path, retry(once))
 
@@ -658,6 +674,8 @@ def main():
     p.add_argument("--cases", nargs="*", help="只处理这些用例 id")
     p.set_defaults(fn=cmd_facts)
     a = ap.parse_args()
+    if a.cmd in ("judge", "express", "read", "score") and not any((Path(a.out) / "gen").glob("*.json")):
+        ap.error("运行目录中没有成稿，请先执行 gen")
     a.fn(a)
 
 
