@@ -1,0 +1,12 @@
+{
+  "id": "reply-simple-01",
+  "family": "reply",
+  "kind": "simple",
+  "task": "用户问了下面这个问题。相关代码你已经读过。请直接回答用户。只输出回复正文。",
+  "facts": [
+    {"id": "F1", "type": "number", "must": true, "text": "返回值是整数 900，单位是秒。"}
+  ],
+  "questions": [
+    {"id": "Q1", "skim": true, "q": "`parse_ttl(\"15m\")` 的返回值是什么？", "options": {"A": "15", "B": "900", "C": "字符串 \"15m\"", "D": "文中没有说明"}, "answer": "B"}
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "share-post-01",
+  "family": "share",
+  "kind": "post",
+  "task": "根据下面的内部材料，写一篇发到公司技术群的分享短文，读者是其他团队的工程师。只输出正文。",
+  "facts": [
+    {"id": "F1", "type": "entity", "must": true, "text": "CaseDraft 是从 PRD 生成测试用例草稿的工具，草稿要由工程师审改后才进评审。"},
+    {"id": "F2", "type": "number", "must": true, "text": "试点有 3 个团队参加。"},
+    {"id": "F3", "type": "number", "must": false, "text": "试点持续 6 周。"},
+    {"id": "F4", "type": "number", "must": true, "text": "试点处理了 41 份 PRD。"},
+    {"id": "F5", "type": "number", "must": true, "text": "每份 PRD 编写用例的中位耗时从 5.5 小时降到 2.1 小时。"},
+    {"id": "F6", "type": "scope", "must": true, "text": "这个耗时包含人工审改时间。"},
+    {"id": "F7", "type": "certainty", "must": true, "text": "试点前的 5.5 小时是团队自己回忆填报的数据，不是系统记录。"},
+    {"id": "F8", "type": "certainty", "must": true, "text": "试点没有设对照组。"},
+    {"id": "F9", "type": "number", "must": true, "text": "评审采纳率是 68%。"},
+    {"id": "F10", "type": "number", "must": true, "text": "带大量图片或原型图的 PRD，采纳率只有 31%。"},
+    {"id": "F11", "type": "number", "must": false, "text": "带大量图片或原型图的 PRD 只有 6 份。"},
+    {"id": "F12", "type": "negation", "must": true, "text": "CaseDraft 目前读不了图片里的内容。"},
+    {"id": "F13", "type": "number", "must": true, "text": "有 2 个线上缺陷本来应该被用例覆盖，但草稿里没有对应用例。"},
+    {"id": "F14", "type": "scope", "must": true, "text": "这 2 个漏掉的缺陷都属于跨系统流程。"},
+    {"id": "F15", "type": "scope", "must": true, "text": "只支持中文 PRD。"},
+    {"id": "F16", "type": "negation", "must": true, "text": "只生成功能用例，不生成性能用例和安全用例。"},
+    {"id": "F17", "type": "status", "must": true, "text": "计划 10 月向所有团队开放试用。"},
+    {"id": "F18", "type": "certainty", "must": true, "text": "开放的具体日期没有定。"},
+    {"id": "F19", "type": "action", "must": true, "text": "想试用的团队可以在 #casedraft 频道登记。"},
+    {"id": "F20", "type": "action", "must": false, "text": "登记时需要提供本团队的 PRD 模板。"},
+    {"id": "F21", "type": "number", "must": false, "text": "每份 PRD 的模型调用成本约 3.2 元。"},
+    {"id": "F22", "type": "certainty", "must": false, "text": "有 2 位工程师反馈草稿看起来完整、容易让人放松审查；这只是个别反馈，没有做过调查。"},
+    {"id": "F23", "type": "certainty", "must": false, "text": "读图能力在评估中，没有承诺时间。"}
+  ],
+  "questions": [
+    {"id": "Q1", "skim": true, "q": "这篇文章介绍的是什么？", "options": {"A": "一个从 PRD 生成测试用例草稿的工具和它的试点情况", "B": "一个自动执行测试的平台", "C": "一份 PRD 写作规范", "D": "文中没有说明"}, "answer": "A"},
+    {"id": "Q2", "skim": false, "q": "试点中，每份 PRD 编写用例的中位耗时怎么变化？", "options": {"A": "从 5.5 小时降到 2.1 小时", "B": "从 5.5 小时降到 3.2 小时", "C": "从 6 小时降到 2 小时", "D": "文中没有说明"}, "answer": "A"},
+    {"id": "Q3", "skim": false, "q": "试点前的耗时数据是怎么来的？", "options": {"A": "系统自动记录", "B": "团队自己回忆填报，而且试点没有对照组", "C": "来自其他公司的公开数据", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q4", "skim": false, "q": "对带大量图片或原型图的 PRD，效果怎么样？", "options": {"A": "和普通 PRD 一样", "B": "比普通 PRD 更好", "C": "明显更差", "D": "文中没有说明"}, "answer": "C"},
+    {"id": "Q5", "skim": false, "q": "试点期间有没有工具漏掉、后来在线上出现的缺陷？", "options": {"A": "没有", "B": "有 2 个，都属于跨系统流程", "C": "有很多", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q6", "skim": false, "q": "工具什么时候向所有团队开放？", "options": {"A": "已经开放", "B": "计划 10 月，具体日期没有定", "C": "10 月 1 日", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q7", "skim": false, "q": "现在能用它生成性能测试用例吗？", "options": {"A": "能", "B": "不能", "C": "部分能", "D": "文中没有说明"}, "answer": "B"}
+  ]
+}

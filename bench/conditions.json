@@ -1,0 +1,22 @@
+[
+  {
+    "id": "none",
+    "label": "无附加指令"
+  },
+  {
+    "id": "oneliner",
+    "label": "一句话提示",
+    "append": "用中文写。写法按 ASD-STE100（Simplified Technical English）的原则，做到大约 80% 即可。"
+  },
+  {
+    "id": "ste-zh",
+    "label": "dualface/ste-zh",
+    "repo": "https://github.com/dualface/ste-zh",
+    "commit": "b168ceac707337f12981582583357ce4034728e9",
+    "preface": "用户已在本会话更早的回合触发了下面这个 skill，它现在生效。本条回复不是生效后的第一条回复，不需要声明规则。",
+    "files": [
+      {"path": "SKILL.md", "strip_frontmatter": true},
+      {"path": "references/terminology.md", "start_at": "## 2. 情态词"}
+    ]
+  }
+]

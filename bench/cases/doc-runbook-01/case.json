@@ -1,0 +1,36 @@
+{
+  "id": "doc-runbook-01",
+  "family": "doc",
+  "kind": "runbook",
+  "task": "根据下面的零散笔记，写一份给值班同事看的操作文档，主题是“主库故障时把服务切到只读”。只输出文档正文。",
+  "facts": [
+    {"id": "F1", "type": "condition", "must": true, "text": "适用条件：主库不可写，并且 DBA 预计 10 分钟内无法恢复；10 分钟内能恢复就等待，不切只读。"},
+    {"id": "F2", "type": "condition", "must": true, "text": "操作人需要 ops-admin 权限。"},
+    {"id": "F3", "type": "action", "must": false, "text": "没有 ops-admin 权限时，找当班组长临时授权。"},
+    {"id": "F4", "type": "action", "must": true, "text": "动手之前先在 #oncall 频道通知，写清楚谁在操作。"},
+    {"id": "F5", "type": "condition", "must": true, "text": "开只读之前检查从库延迟（Seconds_Behind_Source），小于 30 秒才能继续。"},
+    {"id": "F6", "type": "action", "must": true, "text": "从库延迟大于等于 30 秒时不切只读，联系 DBA 值班。"},
+    {"id": "F7", "type": "action", "must": true, "text": "开只读之前必须先暂停定时任务 billing-settle（opsctl cron pause billing-settle）。"},
+    {"id": "F8", "type": "causal", "must": true, "text": "不暂停 billing-settle 的后果：它在只读期间反复失败重试，主库恢复后会重复结算。"},
+    {"id": "F9", "type": "number", "must": false, "text": "上次没有暂停 billing-settle，重复结算了 37 笔。"},
+    {"id": "F10", "type": "entity", "must": true, "text": "开启只读的命令是 opsctl flag set db.readonly true --env prod。"},
+    {"id": "F11", "type": "negation", "must": true, "text": "开只读开关之前不得重启应用。"},
+    {"id": "F12", "type": "causal", "must": false, "text": "开关之前重启会清空连到从库的连接池，从库会被流量打挂。"},
+    {"id": "F13", "type": "condition", "must": false, "text": "只读开关开启之后可以重启应用。"},
+    {"id": "F14", "type": "entity", "must": true, "text": "验证一：/healthz 的返回里有 \"mode\":\"readonly\"。"},
+    {"id": "F15", "type": "entity", "must": true, "text": "验证二：写接口返回 503，响应体里有 READONLY。"},
+    {"id": "F16", "type": "action", "must": true, "text": "恢复顺序：先关闭只读并确认写接口正常，再恢复 billing-settle。"},
+    {"id": "F17", "type": "certainty", "must": true, "text": "只读期间是否需要清 Redis 缓存：上次没清也没出事，但没有专门验证过。"},
+    {"id": "F18", "type": "entity", "must": false, "text": "只读期间下单等写操作返回 503，前端显示“系统维护中”。"},
+    {"id": "F19", "type": "number", "must": false, "text": "上次演练（2026-08-12）从开始操作到验证完成约 4 分钟。"}
+  ],
+  "questions": [
+    {"id": "Q1", "skim": true, "q": "这份文档用来处理什么情况？", "options": {"A": "主库不可写时，把服务切到只读", "B": "从库延迟过高时，把从库切成主库", "C": "数据库扩容", "D": "文中没有说明"}, "answer": "A"},
+    {"id": "Q2", "skim": true, "q": "DBA 预计主库 5 分钟内恢复，应该切只读吗？", "options": {"A": "应该切", "B": "不应该切，等待恢复", "C": "由值班人自行决定", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q3", "skim": false, "q": "检查发现从库延迟是 45 秒，下一步做什么？", "options": {"A": "继续开只读开关", "B": "停止切换，联系 DBA 值班", "C": "重启应用", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q4", "skim": false, "q": "暂停 billing-settle 定时任务应该在什么时候做？", "options": {"A": "开启只读开关之前", "B": "开启只读开关之后", "C": "恢复写入之后", "D": "文中没有说明"}, "answer": "A"},
+    {"id": "Q5", "skim": false, "q": "开只读开关之前可以重启应用吗？", "options": {"A": "可以", "B": "不可以", "C": "建议先重启", "D": "文中没有说明"}, "answer": "B"},
+    {"id": "Q6", "skim": false, "q": "只读期间需要清理 Redis 缓存吗？", "options": {"A": "需要", "B": "不需要，已经验证过", "C": "上次没清也没出事，但没有验证过", "D": "文中没有说明"}, "answer": "C"},
+    {"id": "Q7", "skim": false, "q": "恢复时先做哪一步？", "options": {"A": "先恢复 billing-settle 定时任务", "B": "先关闭只读并确认写接口正常", "C": "顺序无所谓", "D": "文中没有说明"}, "answer": "B"}
+  ]
+}
