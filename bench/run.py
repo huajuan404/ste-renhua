@@ -31,6 +31,9 @@ JUDGES = ["codex", "opus"]
 READERS = ["codex", "haiku"]
 SKIM_READER = "haiku"
 SKIM_CHARS = 80  # 扫读时读者能看到的非空白字符数
+RULES = "v3"  # 判分规则版本。规则变了就升版本，旧结果留在原目录，不覆盖
+JUDGE_DIR = f"judge-{RULES}"
+ADD_TYPES = ("step", "claim", "advice", "next")
 
 CLAUDE = ["claude", "-p", "--setting-sources", "", "--strict-mcp-config", "--tools", "",
           "--disable-slash-commands", "--no-session-persistence", "--output-format", "json"]
@@ -182,15 +185,32 @@ def judge_prompt(case, text):
     return f"""下面有三部分。【材料】是作者掌握的全部信息。【事实清单】是从材料里摘出的事实。【成稿】是作者写给读者的文字，读者看不到材料。
 
 任务一：对事实清单的每一条，判断成稿怎样表达了它。status 只能取下面三个值之一。
-- kept：成稿表达了这条事实，含义一致。措辞可以不同。
-- distorted：成稿提到了这件事，但含义变了或不完整。例：数值或单位变了；否定、范围、条件、例外变了或丢了；确定程度变了（推测写成了确定，未验证写成了已验证，或者反过来）；主体或对象变了；一条事实有多个要点，成稿只表达了一部分。
+- kept：成稿表达了这条事实，含义一致。措辞可以不同。成稿没有逐字写出、但读者不需要别的知识就能直接推出来的，也算 kept。
+- distorted：成稿提到了这件事，但信息和材料不一样。包括：
+  · 数值或单位变了，或者只写了参数名、没有写数值；
+  · 限定语丢了（例：“默认”“不算抖动”“含人工审改时间”）；
+  · 否定、范围、条件、例外变了或丢了；
+  · 说重了或说轻了（例：“会”写成“可能”，“没有验证”写成“不需要”或“已确认”）。标题和小结里说重了也算，即使正文别处是对的；
+  · 把某一次的情况写成了通常的情况；
+  · 用“未验证”“未确认”这类笼统的词替换了材料里更具体的说法；
+  · 一条事实有多个要点，成稿只表达了一部分。
 - missing：成稿完全没有提到这条事实。
+如果这条事实本身写对了，只是成稿另一处有话和它相抵，这条事实仍然判 kept，把相抵的那句话放进任务二。
 status 是 kept 或 distorted 时，quote 必须是从成稿里逐字复制的一小段原文（不超过 60 个字），是你判断的依据。status 是 missing 时，quote 是空字符串。note 用一句话说明理由。
 
-任务二：找出成稿里材料不支持的事实性内容，放进 additions。只找事实性内容：材料里没有、也不能从材料直接推出的数值、结论、承诺、原因、步骤。不要列措辞、标题、过渡语和显然的常识。每条给出 quote（成稿原文，不超过 60 个字）和 note。没有就给空数组。
+任务二：找出成稿里材料不支持的内容，放进 additions。能从材料直接推出来的话不算。措辞、标题、过渡语不算。每条给出：
+- quote：成稿原文，逐字复制，不超过 60 个字。
+- type：只能取下面四个值之一。
+  · step：材料里没有的操作步骤、通知、联系人、检查方法、禁令或要求，并且写成了读者要照做的规定。
+  · claim：材料里没有的事实性说法。例：把一两个例子说成普遍规律；给并列的事实加上因果；自己下结论；编出数值或时间；替读者做了决定，或者把还没定的事说成已经定了。
+  · advice：作者自己多给的解决办法、排查思路或使用建议，读者可以不采纳。
+  · next：作者提出自己接下来可以做什么，或者请读者去做某件事，并且把决定权留给读者。
+- labeled：true 或 false。读者能不能从措辞明确看出，这句话是作者自己的建议或推断，不是材料里的事实。例：用了“建议”“可以考虑”“我的想法是”“我推断”。只有 advice 和 claim 可能是 true。
+- note：一句话理由。
+没有就给空数组。
 
 输出格式：
-{{"facts":[{{"id":"F1","status":"kept","quote":"...","note":"..."}}],"additions":[{{"quote":"...","note":"..."}}]}}
+{{"facts":[{{"id":"F1","status":"kept","quote":"...","note":"..."}}],"additions":[{{"quote":"...","type":"step","labeled":false,"note":"..."}}]}}
 
 【材料】
 {case['materials']}
@@ -259,7 +279,7 @@ def cmd_gen(a):
 def cmd_judge(a):
     out = Path(a.out)
     cases = {c["id"]: c for c in load_cases()}
-    jobs = [(out / "judge" / f"{g.stem}__{j}.json", g, j)
+    jobs = [(out / JUDGE_DIR / f"{g.stem}__{j}.json", g, j)
             for g in sorted((out / "gen").glob("*.json")) for j in JUDGES]
     jobs = [j for j in jobs if not j[0].exists()]
 
@@ -281,7 +301,8 @@ def cmd_judge(a):
                 quote = got.get("quote") or ""
                 facts.append({"id": f["id"], "status": got["status"], "quote": quote,
                               "note": got.get("note", ""), "quote_ok": squash(quote) in body})
-            adds = [{"quote": x.get("quote") or "", "note": x.get("note", ""),
+            adds = [{"quote": x.get("quote") or "", "type": x["type"] if x.get("type") in ADD_TYPES else "claim",
+                     "labeled": x.get("labeled") is True, "note": x.get("note", ""),
                      "quote_ok": squash(x.get("quote") or "") in body}
                     for x in data.get("additions", [])]
             return {"facts": facts, "additions": adds, "meta": meta}
@@ -337,6 +358,15 @@ def share(items):
     return sum(items) / len(items) if items else None
 
 
+def is_violation(add, family):
+    """编出的步骤一律算加料。建议和推断写明了就不算。提议下一步只在回复里不算。"""
+    if add["type"] == "step":
+        return True
+    if add["type"] == "next":
+        return family != "reply"
+    return not add["labeled"]
+
+
 def fmt(vals, pct=False):
     vals = [v for v in vals if v is not None]
     if not vals:
@@ -355,20 +385,20 @@ def cmd_score(a):
     for g in sorted((out / "gen").glob("*.json")):
         gen = load(g)
         case = cases[gen["case"]]
-        must = {f["id"] for f in case["facts"] if f["must"]}
         row = {"case": gen["case"], "cond": gen["cond"], "run": gen["run"], **text_metrics(gen["text"])}
 
         verdicts = {}
         for j in JUDGES:
-            p = out / "judge" / f"{g.stem}__{j}.json"
+            p = out / JUDGE_DIR / f"{g.stem}__{j}.json"
             if not p.exists():
                 continue
             jd = load(p)
             verdicts[j] = {f["id"]: f for f in jd["facts"]}
-            row[f"kept_{j}"] = share([f["status"] == "kept" for f in jd["facts"] if f["id"] in must])
+            row[f"kept_{j}"] = share([f["status"] == "kept" for f in jd["facts"]])
             row[f"distorted_{j}"] = sum(f["status"] == "distorted" for f in jd["facts"])
-            row[f"missing_{j}"] = sum(f["status"] == "missing" for f in jd["facts"] if f["id"] in must)
-            row[f"added_{j}"] = len(jd["additions"])
+            row[f"missing_{j}"] = sum(f["status"] == "missing" for f in jd["facts"])
+            row[f"added_{j}"] = sum(is_violation(x, case["family"]) for x in jd["additions"])
+            row[f"allowed_{j}"] = sum(not is_violation(x, case["family"]) for x in jd["additions"])
             for f in jd["facts"]:
                 if f["status"] != "missing":
                     quotes += 1
@@ -402,8 +432,9 @@ def cmd_score(a):
     cols = [("字数", "chars", False), ("句均长", "sent_mean", False), ("标题", "headers", False),
             ("列表项", "bullets", False), ("加粗", "bold", False)]
     for j in JUDGES:
-        cols += [(f"必要事实保留·{j}", f"kept_{j}", True), (f"歪曲·{j}", f"distorted_{j}", False),
-                 (f"缺必要·{j}", f"missing_{j}", False), (f"新增·{j}", f"added_{j}", False)]
+        cols += [(f"事实保留·{j}", f"kept_{j}", True), (f"歪曲·{j}", f"distorted_{j}", False),
+                 (f"没写·{j}", f"missing_{j}", False), (f"加料·{j}", f"added_{j}", False),
+                 (f"允许的补充·{j}", f"allowed_{j}", False)]
     cols += [(f"读者答对·{r}", f"read_{r}", True) for r in READERS] + [("扫读答对", "skim", True)]
 
     def table(title, key):
