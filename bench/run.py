@@ -239,7 +239,7 @@ def squash(text):
 
 def cmd_gen(a):
     out = Path(a.out)
-    conds = load(BENCH / "conditions.json")
+    conds = load(a.conditions)
     texts = {c["id"]: condition_text(c) for c in conds}
     jobs = [(out / "gen" / f"{case['id']}__{cond['id']}__r{r}.json", case, cond["id"], r)
             for case in load_cases(a.cases) for cond in conds for r in range(1, a.runs + 1)]
@@ -443,6 +443,7 @@ def main():
         if name == "gen":
             p.add_argument("--runs", type=int, default=3)
             p.add_argument("--cases", nargs="*", help="只跑这些用例 id")
+            p.add_argument("--conditions", default=str(BENCH / "conditions.json"), help="写作指令清单")
         p.set_defaults(fn=fn)
     a = ap.parse_args()
     a.fn(a)
