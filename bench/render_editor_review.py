@@ -71,7 +71,9 @@ def length(text):
     return len(re.sub(r'\s', '', text))
 
 
-def build(src, out):
+def build(src, out, scope='full'):
+    if scope not in ['full', 'section']:
+        raise ValueError('未知的对照范围')
     src, out = Path(src).resolve(), Path(out).resolve()
     manifest = rewrite.manifest(src)
     variants = []
@@ -105,7 +107,7 @@ def build(src, out):
                          'unchanged': gen['text'] == case['text']})
     if not variants:
         raise ValueError('没有改写稿可供审阅')
-    data = {'manifest_hash': manifest['hash'], 'variants': variants, 'judges': manifest['judges']}
+    data = {'manifest_hash': manifest['hash'], 'variants': variants, 'judges': manifest['judges'], 'scope': scope}
     data['review_data_hash'] = rewrite.digest(data)
     articles, index = [], []
     fields = {'concision': ('简洁程度', [('better', '更简洁'), ('same', '差不多'), ('worse', '更冗长')]),
@@ -139,12 +141,17 @@ def build(src, out):
 <details class="provenance"><summary>规则来源与逐字正文</summary><p>{source_link} · 本轮追加简洁、保真和只交正文的要求。生成：{escape(', '.join(v['models']))}；核对：{escape(', '.join(data['judges']))}。</p><div class="comparison"><label>原稿逐字文本<textarea readonly rows="8">{escape(v['original'])}</textarea></label><label>模型逐字输出<textarea readonly rows="8">{escape(v['text'])}</textarea></label></div></details></article>''')
     template = Path(__file__).with_name('editor-review.html').read_text()
     payload = json.dumps(data, ensure_ascii=False).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
-    page = template.replace('__INDEX__', ''.join(index)).replace('__ARTICLES__', ''.join(articles)).replace('__DATA__', payload)
+    scope_text = '全文' if scope == 'full' else '片段'
+    scope_note = '' if scope == 'full' else '<p class="hint">本页只对照原稿中的一个连续小节，字数变化和阅读评价仅针对这个片段，不代表整篇文章效果。</p>'
+    replacements = {'__INDEX__': ''.join(index), '__ARTICLES__': ''.join(articles),
+                    '__DATA__': payload, '__SCOPE__': scope_text, '__SCOPE_NOTE__': scope_note}
+    page = re.sub(r'__(?:INDEX|ARTICLES|DATA|SCOPE|SCOPE_NOTE)__',
+                  lambda match: replacements[match.group()], template)
     out.mkdir(parents=True, exist_ok=True)
     rewrite.engine.save(out / 'editor-review-data.json', data)
     path = out / 'editor-review.html'
     path.write_text(page, encoding='utf-8')
-    print(f'{len(variants)} 篇候选，全文对照：{path}', flush=True)
+    print(f'{len(variants)} 篇候选，{scope_text}对照：{path}', flush=True)
     return path
 
 
@@ -174,9 +181,10 @@ def main():
     parser.add_argument('--from', dest='src', required=True)
     parser.add_argument('--out', required=True)
     parser.add_argument('--serve', action='store_true')
+    parser.add_argument('--scope', choices=['full', 'section'], default='full')
     args = parser.parse_args()
     try:
-        path = build(args.src, args.out)
+        path = build(args.src, args.out, args.scope)
         if args.serve:
             serve(path)
     except (ValueError, KeyError, FileNotFoundError) as error:

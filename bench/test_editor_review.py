@@ -47,6 +47,36 @@ class EditorReviewTests(unittest.TestCase):
                     review.build(directory, directory)
             self.assertFalse((Path(directory) / 'editor-review.html').exists())
 
+    def test_section_scope_is_visible_and_bound_to_export_hash(self):
+        case, gen, manifest, judgment = self.fixtures()
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(review.rewrite, 'manifest', return_value=manifest), patch.object(review.rewrite, 'drafts', return_value=[('test__edit__r1',case,gen)]), patch.object(review.rewrite.engine,'load',return_value=judgment):
+                path = review.build(directory,directory,scope='section')
+            self.assertIn('不代表整篇文章效果',path.read_text())
+            self.assertIn('原稿与改写片段对照',path.read_text())
+            self.assertNotIn('__SCOPE',path.read_text())
+            data=json.loads((Path(directory)/'editor-review-data.json').read_text())
+            digest=data.pop('review_data_hash')
+            self.assertEqual(data['scope'],'section')
+            self.assertEqual(digest,review.rewrite.digest(data))
+            data['scope']='full'
+            self.assertNotEqual(digest,review.rewrite.digest(data))
+
+    def test_literal_template_markers_in_source_are_preserved(self):
+        case, gen, manifest, judgment = self.fixtures()
+        literal = '建议暂缓上线。 __SCOPE__ __SCOPE_NOTE__ __DATA__'
+        case['text'] = gen['text'] = literal
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(review.rewrite, 'manifest', return_value=manifest), \
+                    patch.object(review.rewrite, 'drafts', return_value=[('test__edit__r1', case, gen)]), \
+                    patch.object(review.rewrite.engine, 'load', return_value=judgment):
+                page = review.build(directory, directory, scope='section').read_text()
+            payload = page.split('<script id="review-data" type="application/json">')[1].split('</script>')[0]
+            variant = json.loads(payload)['variants'][0]
+            self.assertEqual(variant['original'], literal)
+            self.assertEqual(variant['text'], literal)
+            self.assertIn(literal, page.split('<script')[0])
+
     def test_markdown_tables_lists_emphasis_and_untrusted_html(self):
         text = '## 结果\n\n| 组 | 数量 |\n|---|---|\n| A | **2** |\n\n- 约 5%\n- 尚未验证\n\n<script>bad()</script> `x<y`'
         html = review.markdown(text, '')
