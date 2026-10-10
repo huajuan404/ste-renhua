@@ -275,12 +275,14 @@ python3 bench/render_editor_review.py --from /path/to/private/editor-run --out /
 
 `bench/screen_rewrite.py` 比较 Markdown 渲染后的非空白文字，避免删标题符号、表格分隔线制造压缩收益。历史 `screen-v1` 把缩短至少 8% 作为前置门槛，但这个任意比例将字数当成效果，无法判断清楚程度，已停用；旧结果保留。
 
-当前 `screen-v2` 允许不变长但更清楚的候选进入检查，不设置固定压缩比例。逐字不变记录为 `unchanged`，不算改善；变长的候选仍拦下。独立 Sonnet 先核对信息清单及全文，任何信息变化都淘汰；再匿名比较清楚、自然、简洁和整体偏好。仅零散删词、换词、拆列表，阅读负担基本相同，记为 `minor`；只有明确指代、理顺绕句、合并完整重复或改掉难懂表达，且检查具体引文后判为明显阅读收益 `clear`，才允许晋级。清楚、自然、简洁均不得退步，至少一项胜出且整体偏好候选。通过后仍需完成 Opus 主判分。收益级别仍是模型判断，不是人工验收或通用质量标准。
+`screen-v2` 允许不变长但更清楚的候选进入检查，不设置固定压缩比例。逐字不变记录为 `unchanged`，不算改善；变长的候选仍拦下。独立 Sonnet 先核对信息清单及全文，任何信息变化都淘汰；再匿名比较清楚、自然、简洁和整体偏好。仅零散删词、换词、拆列表，阅读负担基本相同，记为 `minor`；只有明确指代、理顺绕句、合并完整重复或改掉难懂表达，且检查具体引文后判为明显阅读收益 `clear`，才允许晋级。通过后仍需完成 Opus 主判分。收益级别仍是模型判断，不是人工验收或通用质量标准。
+
+当前 `screen-v4` 在上述检查之外单独比较阅读结构：原稿有列表、成稿完全没列表，直接记为 `rejected_list_structure`，不调用模型；模型继续核对剩余列表、表格、标题是否保留并列、对照、步骤和层级的区分。原有列表只有两项也需保留，同一句用分号分开不等同于列表。结构退步或缺少结构判分均不能晋级，也不按列表数量机械评分。清楚、自然、简洁和结构均不得退步，至少一项胜出且整体偏好候选；历史各版本不覆盖。
 
 筛选冻结原稿运行哈希、规则、模型和渲染器版本，记录所有失败；复用结果也重新验证引文及匿名顺序。检查失败时汇总标为未完成，不能留下旧的成功状态。新版本写入独立目录，不覆盖旧筛选结果。生成器支持 `--generator sonnet|opus|haiku`，条件支持显式 `system`；两者都写入冻结配置，恢复运行不得偷换模型或编辑角色。
 
 ```bash
-python3 bench/rewrite.py gen --dataset /path/to/private/dataset.json --conditions bench/rewrite-editor-a6.json --generator opus --out /path/to/private/new-run --runs 1 --judges opus
+python3 bench/rewrite.py gen --dataset /path/to/private/dataset.json --conditions bench/rewrite-editor-a7.json --generator opus --out /path/to/private/new-run --runs 1 --judges opus
 python3 bench/screen_rewrite.py --from /path/to/private/new-run
 # 仅在内部筛选找到候选后继续主判分；否则不制作新人工 review。
 python3 bench/rewrite.py judge --out /path/to/private/new-run
@@ -304,7 +306,7 @@ A6 另换 Haiku 在相同六篇上各跑一次，实际模型记录为 `claude-h
 
 随后按既有重复标记检查其他真实原稿，选择一节具有完整属性重复的讲解，生成前固定原稿与指导条件。Opus 将同一事实的属性只讲一次，放进前后对照句：可读非空白文字从 252 减到 204（减少 19.0%），包含 Markdown 标记的非空白字符从 281 减到 223（减少 20.6%）。Sonnet 与 Opus 对 13 个模型提取的信息单元及全文均未标出变化；匿名 Sonnet 在清楚、自然、简洁及整体偏好上均选候选，收益为 `clear`。仅这一份进入局部 HTML，失败版本不混入。输入、原稿对照、输出、判分及页面保存在私有 `real/reference-annotation-v1/`。
 
-这份参考证明的是：指出真实重复后，模型在这一节能得到通过内部检查的合并结果。它没有证明模型能自动发现问题、整篇效果稳定或用户愿意采用；两个 Claude 模型的检查也不代替人工验收。下一步先核对这份参考是否符合用户的简洁目标，再检验自动发现问题的能力，不能直接发布为已验收 skill。
+这份参考证明的是：指出真实重复后，模型在这一节能得到通过内部检查的合并结果。它没有证明模型能自动发现问题或整篇效果稳定；当时尚未取得用户反馈，两个 Claude 模型的检查也不代替人工验收。后续反馈及列表修正见下节，不能直接发布为已验收 skill。
 
 ```bash
 python3 bench/render_editor_review.py --from /path/to/private/reference-run --out /path/to/private/reference-review --scope section --serve
@@ -313,3 +315,13 @@ python3 bench/render_editor_review.py --from /path/to/private/reference-run --ou
 `--scope section` 明确页面只比较一个连续小节，范围也绑定到导出记录哈希；默认仍是全文。模板标记只在模板中替换，原稿或成稿中的同名字面文本保持原样。页面添加范围说明后渲染器文件哈希改变，既有预筛拒绝按新规则覆盖；本次成功试验保存了预筛时的 `renderer-at-screen.py`，已核对其哈希、可读文字函数及 252→204 的计数均与当前版本一致。
 
 验证：`python3 -m unittest discover -s bench -p 'test_*.py'`，29 项通过，包含无固定压缩的晋级路径、轻微收益拒绝、旧结果保留、范围哈希绑定及原稿含模板标记的对抗检查。真实 Chrome 已检查这一份双栏正文与局部范围说明，未代填用户选择；本地 HTTP 实际响应与落盘 HTML 一致，私有 JSON 请求返回 404。
+
+### 用户反馈与列表保留
+
+用户认可这一节的内容合并，但指出原有两条对照列表被压成段落，要求保留阅读结构。反馈原文及上版输出哈希保存在私有目录，不代填四项 review。新增开发提示 `bench/rewrite-editor-a7.json`：合并重复信息，保留列表、表格、标题、步骤顺序与层级，不靠压平结构换字数。
+
+首先按新提示重新生成，恢复列表却加回重复开场：可读正文只减少 4.4%，双模型无信息变化标记，但匿名质量仅轻微收益，未制作 HTML；保存在 `real/reference-annotation-v2/`。随后收紧范围，以上版用户认可的正文为编辑起点，仅恢复两条列表，仍针对同一冻结原稿核对信息。Opus 修正版可读文字仍为 252→204（减少 19.0%），含 Markdown 字符为 281→225（减少 19.9%）；Sonnet、Opus 对全部 13 个模型提取单元及全文均未标出变化。匿名 Sonnet 判阅读结构持平，清楚、自然、简洁及整体偏好修正版，收益 `clear`。这一份页面保存在私有 `real/reference-annotation-v3/review/`，旧稿、失败稿和旧选择不覆盖。
+
+结构对抗复查也保留失败：初版 `screen-v3` 仅增加模型结构判分，单独匿名比较旧候选时，Sonnet 仍把两项列表合成分号长句判为结构持平，放过了用户指出的问题。因此 `screen-v4` 先确定性拦下“原稿有列表、成稿完全无列表”，再做模型检查。旧候选在新规则下实际记为 `rejected_list_structure`，零次模型调用。这只能兜住全部列表丢失，不能证明每个条目的位置和用途都保留，剩余结构仍需模型及人工核对。另一次旧稿保真复核出现 1 条变化标记，与先前两个模型的零标记不一致；所有记录保留，不用单次复核覆盖既有反馈或把模型清单称人工真值。
+
+本轮验证：32 项单元测试通过，新增全部列表丢失直接拒绝、保留列表标记但结构退步仍拒绝、结构判分缺项及非法值拒绝，历史目录保留；修正版真实生成、预筛及两次 Opus 主判分执行完成。真实 Chrome 已确认两侧均显示两条列表，私有页面与实际 HTTP 响应一致，范围及输出哈希绑定有效。结果仅针对这一份参考，自动发现重复与整篇效果继续待验证。
