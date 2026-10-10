@@ -9,7 +9,7 @@ import re
 import rewrite
 import render_editor_review
 
-VERSION = 'screen-v4'
+VERSION = 'screen-v5'
 QUALITY_PROMPT = '''比较同一篇内容的两个写法，不知道哪个先写、哪个后写。你只做编辑质量判断，不核验业务事实真假。
 目标读者：{reader}
 分别判断哪个更清楚、更自然、更简洁，以及整体愿意采用哪版。更短不自动更好：省略必要主语、变成电报体、名词堆叠或改变作者语气都应扣分。两版差不多就判 same，不为了给出胜负而挑选。
@@ -59,14 +59,18 @@ def validate_quality(value, a, b):
     return value
 
 
-def screen(src):
-    src = Path(src).resolve()
-    manifest = rewrite.manifest(src)
-    rules = {'version': VERSION, 'max_readable_growth': 0, 'min_gain': 'clear',
+def screen_rules():
+    return {'version': VERSION, 'max_readable_growth': 0, 'min_gain': 'clear',
              'reject_all_lists_removed': True,
              'model': 'sonnet', 'fidelity_prompt': rewrite.JUDGE_PROMPT,
              'quality_prompt': QUALITY_PROMPT,
              'renderer_hash': rewrite.digest(Path(render_editor_review.__file__).read_text())}
+
+
+def screen(src):
+    src = Path(src).resolve()
+    manifest = rewrite.manifest(src)
+    rules = screen_rules()
     stamp = {'manifest_hash': manifest['hash'], 'rules_hash': rewrite.digest(rules), 'rules': rules}
     root = src / VERSION
     policy = root / 'policy.json'
