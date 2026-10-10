@@ -93,7 +93,11 @@ def build(src, out):
                 for item in judgment[field]:
                     checks.append({'model': model, 'kind': field, **item})
         condition = conditions[gen['cond']]
-        variants.append({'id': stem, 'case': case['id'], 'label': condition.get('label', gen['cond']),
+        label = condition.get('label', gen['cond'])
+        if len(manifest['cases']) > 1:
+            first_line = next(line.strip().lstrip('#').strip() for line in case['text'].splitlines() if line.strip())
+            label += ' · ' + first_line[:24]
+        variants.append({'id': stem, 'case': case['id'], 'label': label,
                          'original': case['text'], 'text': gen['text'], 'text_hash': gen['text_hash'],
                          'models': gen['meta'].get('models', []), 'checks': checks,
                          'source': condition.get('repo', ''), 'commit': condition.get('commit', ''),
@@ -125,7 +129,7 @@ def build(src, out):
         assessment = ''.join(f'<fieldset><legend>{title}</legend>' + ''.join(
             f'<button type="button" data-field="{field}" data-value="{value}" aria-pressed="false">{name}</button>'
             for value, name in options) + '</fieldset>' for field, (title, options) in fields.items())
-        source_link = (f'<a href="{escape(v["source"], quote=True)}/blob/{escape(v["commit"], quote=True)}/SKILL.md" target="_blank" rel="noreferrer">来源规则 ↗</a>' if v['source'].startswith('https://github.com/') else '')
+        source_link = (f'<a href="{escape(v["source"], quote=True)}/blob/{escape(v["commit"], quote=True)}/SKILL.md" target="_blank" rel="noreferrer">来源规则 ↗</a>' if v['source'].startswith('https://github.com/') else '本地编辑提示，未直接加载外部 skill')
         articles.append(f'''<article class="variant" id="{ident}" data-variant="{ident}">
 <header class="variant-head"><h2>{label}</h2><p>{v['original_length']} → <b>{v['length']}</b> 字 <span class="delta {'longer' if delta > 0 else ''}">{escape(delta_label)}</span> · {state}</p></header>
 <div class="comparison"><section><div class="column-label">原稿 <small>{v['original_length']} 字</small></div><div class="prose">{markdown(v['original'], v['text'])}</div></section>
