@@ -8,15 +8,18 @@ import screen_rewrite as screen
 
 
 class ScreenTests(unittest.TestCase):
-    def test_equal_length_clarity_improvement_is_evaluated_and_old_results_are_preserved(self):
-        original = '本轮未验证，不能发布。'
-        text = '本轮没验证，不可发布。'
+    def test_equal_length_organization_improvement_is_evaluated_and_old_results_are_preserved(self):
+        original = '## 请求\n检查配置后再请求。\n## 配置\n请求前检查配置。'
+        text = '## 配置\n请求前检查配置。\n## 请求\n检查配置后再请求。'
         self.assertEqual(screen.readable_chars(original), screen.readable_chars(text))
         case = {'text':original,'units':[{'id':'U1'}]}
         draft = dict(cond='candidate',text=text,text_hash=screen.rewrite.digest(text),reader='工程师')
         label = 'A' if int(draft['text_hash'][0],16)%2 else 'B'
         fidelity = dict(units=[dict(id='U1',status='kept',quote=text)],unlisted=[],additions=[])
-        quality = dict(clarity=label,naturalness='same',concision='same',structure='same',preferred=label,gain='clear',note='指代与条件更清楚',a_quote=original if label=='B' else text,b_quote=text if label=='B' else original)
+        quality = dict(clarity=label,naturalness='same',concision='same',structure='same',
+                       logic=label,early_answer='same',locating='same',preferred=label,gain='clear',
+                       note='先理解前置配置，再定位发起请求，正文关系未改变。',
+                       a_quote=original if label=='B' else text,b_quote=text if label=='B' else original)
         with tempfile.TemporaryDirectory() as directory:
             old = Path(directory)/'screen-v1/summary.json'
             screen.rewrite.engine.save(old,{'keep':'历史结果'})
@@ -37,13 +40,55 @@ class ScreenTests(unittest.TestCase):
                     self.assertEqual(screen.screen(directory)[0]['status'],status)
                     model.assert_not_called()
 
+    def test_small_growth_still_needs_clear_organization_gain_and_no_concision_regression(self):
+        config = '配置错误时停止，错误来源尚未验证。' * 12
+        request = '配置正确才能发起请求。' * 12
+        original = '## 请求\n' + request + '\n## 配置\n' + config
+        text = '## 检查配置\n' + config + '\n## 发起请求\n' + request
+        self.assertGreater(screen.readable_chars(text), screen.readable_chars(original))
+        self.assertLess(screen.readable_chars(text), screen.readable_chars(original) * 1.02)
+        case = {'text': original, 'units': [{'id': 'U1'}]}
+        draft = dict(cond='candidate', text=text, text_hash=screen.rewrite.digest(text), reader='工程师')
+        label = 'A' if int(draft['text_hash'][0], 16) % 2 else 'B'
+        other = 'B' if label == 'A' else 'A'
+        fidelity = dict(units=[dict(id='U1', status='kept', quote=text)], unlisted=[], additions=[])
+        quality = dict(clarity=label, naturalness='same', concision='same', structure='same',
+                       logic=label, early_answer='same', locating=label, preferred=label, gain='clear',
+                       note='先核对前置配置，再定位请求，条件及未验证范围未改变。',
+                       a_quote=original if label == 'B' else text,
+                       b_quote=text if label == 'B' else original)
+        for changes, status in [({}, 'ready_for_primary_fidelity'),
+                                ({'gain': 'minor'}, 'rejected_editorial_quality'),
+                                ({'concision': other}, 'rejected_editorial_quality')]:
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as directory:
+                with patch.object(screen.rewrite, 'manifest', return_value={'hash': 'fixed'}), \
+                        patch.object(screen.rewrite, 'drafts', return_value=[('sample', case, draft)]), \
+                        patch.object(screen.rewrite.engine, 'call', side_effect=[(json.dumps(fidelity), {}), (json.dumps({**quality, **changes}), {})]) as model:
+                    self.assertEqual(screen.screen(directory)[0]['status'], status)
+                    self.assertEqual(model.call_count, 2)
+
+    def test_excess_growth_cannot_reach_model_checks_even_on_a_long_reply(self):
+        original = '生产尚未验证。' * 100
+        text = '## ' + '核对' * 20 + '\n' + original
+        self.assertGreater(screen.readable_chars(text), screen.readable_chars(original) * 1.02)
+        case = {'text': original}
+        draft = dict(cond='candidate', text=text, text_hash=screen.rewrite.digest(text))
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(screen.rewrite, 'manifest', return_value={'hash': 'fixed'}), \
+                    patch.object(screen.rewrite, 'drafts', return_value=[('sample', case, draft)]), \
+                    patch.object(screen.rewrite.engine, 'call') as model:
+                self.assertEqual(screen.screen(directory)[0]['status'], 'rejected_length_increase')
+                model.assert_not_called()
+
     def test_screen_rejects_loss_and_fails_closed_on_tampered_cached_evidence(self):
         case = {'text': '生产环境尚未验证。重复：生产环境尚未验证。', 'units': [{'id': 'U1'}]}
         text = '生产环境尚未验证。'
         gen = {'cond': 'candidate', 'text': text, 'text_hash': screen.rewrite.digest(text), 'reader': '工程师'}
         fidelity = {'units': [{'id':'U1', 'status':'kept', 'quote':text}], 'unlisted':[], 'additions':[]}
         label = 'A' if int(gen['text_hash'][0], 16) % 2 else 'B'
-        quality = dict(clarity='same', naturalness='same', concision=label, structure='same', preferred=label, gain='clear', note='重复只说一遍', a_quote=text, b_quote=text)
+        quality = dict(clarity='same', naturalness='same', concision=label, structure='same',
+                       logic='same', early_answer='same', locating=label,
+                       preferred=label, gain='clear', note='重复只说一遍，信息集中可定位', a_quote=text, b_quote=text)
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(screen.rewrite, 'manifest', return_value={'hash':'fixed'}), patch.object(screen.rewrite, 'drafts', return_value=[('sample',case,gen)]), patch.object(screen.rewrite.engine, 'call', side_effect=[(json.dumps(fidelity),{}),(json.dumps(quality),{})]) as model:
                 self.assertEqual(screen.screen(directory)[0]['status'], 'ready_for_primary_fidelity')
@@ -64,7 +109,9 @@ class ScreenTests(unittest.TestCase):
                 self.assertEqual(model.call_count, 2)
 
     def test_quality_requires_literal_nonempty_evidence(self):
-        value = dict(clarity='same', naturalness='same', concision='B', structure='same', preferred='B', gain='clear', note='具体收益', a_quote='尚未验证', b_quote='尚未验证')
+        value = dict(clarity='same', naturalness='same', concision='B', structure='same',
+                     logic='same', early_answer='same', locating='B', preferred='B',
+                     gain='clear', note='具体收益', a_quote='尚未验证', b_quote='尚未验证')
         screen.validate_quality(value, '生产尚未验证。', '生产尚未验证。')
         value['b_quote'] = '生产已经验证'
         with self.assertRaises(ValueError):
@@ -79,19 +126,21 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(screen.readable_chars(original), screen.readable_chars(plain))
 
     def test_lower_readability_rejects_a_shorter_preferred_candidate(self):
-        value = {'clarity': 'A', 'naturalness': 'B', 'concision': 'B', 'structure':'same', 'preferred': 'B', 'gain':'clear'}
+        value = {'clarity': 'A', 'naturalness': 'B', 'concision': 'B', 'structure':'same',
+                 'logic':'B', 'early_answer':'same', 'locating':'same', 'preferred': 'B', 'gain':'clear'}
         self.assertFalse(screen.passes_quality(value, 'B'))
         value['clarity'] = 'same'
         self.assertTrue(screen.passes_quality(value, 'B'))
         value['naturalness'] = 'A'
         self.assertFalse(screen.passes_quality(value, 'B'))
 
-    def test_clarity_gain_can_pass_without_fixed_compression_but_minor_edits_cannot(self):
-        value = dict(clarity='B', naturalness='same', concision='same', structure='same', preferred='B', gain='clear')
+    def test_organization_gain_can_pass_without_fixed_compression_but_local_edits_cannot(self):
+        value = dict(clarity='B', naturalness='same', concision='same', structure='same',
+                     logic='B', early_answer='same', locating='same', preferred='B', gain='clear')
         self.assertTrue(screen.passes_quality(value, 'B'))
         value['gain']='minor'
         self.assertFalse(screen.passes_quality(value, 'B'))
-        value.update(gain='clear', clarity='same')
+        value.update(gain='clear', logic='same')
         self.assertFalse(screen.passes_quality(value, 'B'))
 
     def test_all_information_change_categories_block_promotion(self):
@@ -112,7 +161,8 @@ class ScreenTests(unittest.TestCase):
         other = 'B' if candidate == 'A' else 'A'
         fidelity = dict(units=[dict(id='U1', status='kept', quote=text)], unlisted=[], additions=[])
         quality = dict(clarity=candidate, naturalness=candidate, concision=candidate,
-                       structure=other, preferred=candidate, gain='clear',
+                       structure=other, logic=candidate, early_answer='same', locating='same',
+                       preferred=candidate, gain='clear',
                        note='步骤列表被压成句子，不能单独定位每一步。',
                        a_quote=text if candidate == 'A' else original,
                        b_quote=original if candidate == 'A' else text)
@@ -142,6 +192,42 @@ class ScreenTests(unittest.TestCase):
                         patch.object(screen.rewrite.engine, 'call') as model:
                     self.assertEqual(screen.screen(directory)[0]['status'], 'rejected_list_structure')
                     model.assert_not_called()
+
+    def test_table_can_replace_comparison_list_without_losing_scan_structure(self):
+        original = '- A：只读。\n- B：读写。\n两类权限：A只读，B读写。'
+        text = '| 类别 | 权限 |\n|---|---|\n| A | 只读 |\n| B | 读写 |'
+        case = {'text': original, 'units': [{'id': 'U1'}]}
+        draft = dict(cond='candidate', text=text, text_hash=screen.rewrite.digest(text), reader='工程师')
+        label = 'A' if int(draft['text_hash'][0], 16) % 2 else 'B'
+        fidelity = dict(units=[dict(id='U1', status='kept', quote=text)], unlisted=[], additions=[])
+        quality = dict(clarity=label, naturalness='same', concision='same', structure=label,
+                       logic='same', early_answer='same', locating=label, preferred=label,
+                       gain='clear', a_quote=original if label == 'B' else text,
+                       b_quote=text if label == 'B' else original, note='两类权限在同一维度比较。')
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(screen.rewrite, 'manifest', return_value={'hash': 'fixed'}), \
+                    patch.object(screen.rewrite, 'drafts', return_value=[('sample', case, draft)]), \
+                    patch.object(screen.rewrite.engine, 'call', side_effect=[(json.dumps(fidelity), {}), (json.dumps(quality), {})]):
+                self.assertEqual(screen.screen(directory)[0]['status'], 'ready_for_primary_fidelity')
+
+    def test_each_organization_regression_blocks_an_otherwise_preferred_draft(self):
+        quality = dict(clarity='B', naturalness='B', concision='B', structure='B',
+                       logic='B', early_answer='B', locating='B', preferred='B', gain='clear')
+        for field in ['logic', 'early_answer', 'locating']:
+            with self.subTest(field=field):
+                self.assertFalse(screen.passes_quality({**quality, field:'A'}, 'B'))
+
+    def test_missing_or_invalid_organization_evidence_fails_closed(self):
+        quality = dict(clarity='B', naturalness='same', concision='same', structure='same',
+                       logic='B', early_answer='same', locating='same', preferred='B', gain='clear',
+                       a_quote='尚未验证', b_quote='尚未验证', note='组织关系')
+        for field in ['logic', 'early_answer', 'locating']:
+            with self.subTest(field=field):
+                missing = {k:v for k,v in quality.items() if k != field}
+                with self.assertRaises(KeyError):
+                    screen.validate_quality(missing, '尚未验证', '尚未验证')
+                with self.assertRaises(ValueError):
+                    screen.validate_quality({**quality, field:'更多标题'}, '尚未验证', '尚未验证')
 
 
 if __name__ == '__main__':

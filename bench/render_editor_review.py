@@ -152,9 +152,9 @@ def qualified_drafts(src, manifest, drafts):
         if (result['candidate_label'] != label or screen.information_changes(result['fidelity'])
                 or not screen.passes_quality(result['quality'], label)
                 or gen['text'] == case['text']
-                or screen.readable_chars(gen['text']) > screen.readable_chars(case['text'])
+                or screen.readable_chars(gen['text']) > screen.readable_chars(case['text']) * (1 + rules['max_readable_growth'])
                 or (re.search(r'<(?:ul|ol)>', markdown(case['text'], ''))
-                    and not re.search(r'<(?:ul|ol)>', markdown(gen['text'], '')))):
+                    and not re.search(r'<(?:ul|ol|table)>', markdown(gen['text'], '')))):
             raise ValueError('内部预筛状态与核对依据不一致')
         selected.add(stem)
     return selected, {'screen_version': screen.VERSION, 'screen_rules_hash': stamp['rules_hash'],

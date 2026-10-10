@@ -75,7 +75,8 @@ class CombinedReviewTests(unittest.TestCase):
             root = Path(directory)
             src = root / 'source'
             manifest, drafts, _ = test_editor_review.EditorReviewTests().screened_fixtures(src)
-            old_rules = {**screen.screen_rules(), 'version': 'screen-v4', 'renderer_hash': 'older-renderer'}
+            old_rules = {**screen.screen_rules(), 'version': 'screen-v4', 'renderer_hash': 'older-renderer',
+                         'fidelity_prompt': combined.rewrite.JUDGE_PROMPT}
             old_policy = {'manifest_hash': manifest['hash'], 'rules': old_rules, 'rules_hash': combined.rewrite.digest(old_rules)}
             old_result = combined.rewrite.engine.load(src / screen.VERSION / 'test__edit__r1.json')
             old_result['rules_hash'] = old_policy['rules_hash']

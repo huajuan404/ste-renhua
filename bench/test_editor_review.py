@@ -111,7 +111,8 @@ class EditorReviewTests(unittest.TestCase):
                 continue
             label = 'A' if int(g['text_hash'][0], 16) % 2 else 'B'
             quality = {k: label for k in ['clarity', 'naturalness', 'concision', 'preferred']}
-            quality.update(structure='same', gain='clear', note='合并完整重复，原稿没有列表。',
+            quality.update(structure='same', logic='same', early_answer='same', locating=label,
+                           gain='clear', note='合并完整重复，信息集中可定位，原稿没有列表。',
                            a_quote=text if label == 'A' else case['text'],
                            b_quote=case['text'] if label == 'A' else text)
             fidelity = {'units': [{'id': 'U1', 'status': 'kept', 'quote': text}], 'unlisted': [], 'additions': []}
@@ -174,6 +175,35 @@ class EditorReviewTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, '状态与核对依据不一致'):
                     review.build(directory, directory, qualified_only=True)
             self.assertFalse((Path(directory) / 'editor-review.html').exists())
+
+    def test_ready_status_cannot_override_only_local_expression_gains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, drafts, _ = self.screened_fixtures(directory)
+            result_path = Path(directory) / screen.VERSION / 'test__edit__r1.json'
+            result = review.rewrite.engine.load(result_path)
+            result['quality'].update(logic='same', early_answer='same', locating='same')
+            review.rewrite.engine.save(result_path, result)
+            with patch.object(review.rewrite, 'manifest', return_value=manifest), \
+                    patch.object(review.rewrite, 'drafts', return_value=drafts):
+                with self.assertRaisesRegex(ValueError, '状态与核对依据不一致'):
+                    review.build(directory, directory, qualified_only=True)
+            self.assertFalse((Path(directory) / 'editor-review.html').exists())
+
+    def test_review_rechecks_growth_instead_of_trusting_ready_status(self):
+        for candidate_length in [101, 103]:
+            with self.subTest(candidate_length=candidate_length), tempfile.TemporaryDirectory() as directory:
+                manifest, drafts, _ = self.screened_fixtures(directory)
+                original = drafts[0][1]['text']
+                with patch.object(review.rewrite, 'manifest', return_value=manifest), \
+                        patch.object(review.rewrite, 'drafts', return_value=drafts), \
+                        patch.object(screen, 'readable_chars', side_effect=lambda text: 100 if text == original else candidate_length):
+                    if candidate_length == 101:
+                        path = review.build(directory, directory, qualified_only=True)
+                        self.assertTrue(path.exists())
+                    else:
+                        with self.assertRaisesRegex(ValueError, '状态与核对依据不一致'):
+                            review.build(directory, directory, qualified_only=True)
+                        self.assertFalse((Path(directory) / 'editor-review.html').exists())
 
     def test_fenced_code_keeps_newlines_and_does_not_become_a_list(self):
         text = '```yaml\nnameserver-policy:\n  - https://8.8.8.8/dns-query\n  <script>bad()</script>\n```\n\n- 真实列表'
