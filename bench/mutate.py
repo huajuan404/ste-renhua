@@ -207,6 +207,11 @@ def hit_info(kind, m, v, v0, family):
 def hit_express(kind, m, v):
     target = m.get("insert") or m["after"]
     quotes = [q for x in v[kind["field"]] for q in (x.get("quote"), x.get("first"), x.get("again")) if q]
+    if kind.get("ok"):
+        # 解释过的代号保留原来的具体说法。原句已有的缩写被标出，
+        # 不能归因为新增代号没解释；只统计改动引入的说法。
+        before = run.squash(m.get("before", ""))
+        quotes = [q for q in quotes if run.squash(q) not in before]
     found = any(overlaps(q, target) for q in quotes)
     return not found if kind.get("ok") else found
 

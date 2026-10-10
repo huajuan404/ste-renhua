@@ -1,0 +1,26 @@
+{
+  "id": "preservation-control",
+  "reader": "没有读过其他材料的工程师",
+  "text": "本轮仅在测试环境验证了 12 条请求，成功 10 条，失败 2 条。生产环境尚未验证。请求超时为 30 秒；仅在连接失败时重试一次，业务错误不重试。缓存可能降低响应时间，但目前没有测量数据。我建议下周先做一次小规模测试，是否执行由你决定。完整结果见本地 results.json。",
+  "units": [
+    {"id":"U1","text":"本轮仅在测试环境验证12条请求，10成功、2失败。","quote":"本轮仅在测试环境验证了 12 条请求，成功 10 条，失败 2 条。"},
+    {"id":"U2","text":"生产环境尚未验证。","quote":"生产环境尚未验证。"},
+    {"id":"U3","text":"请求超时为30秒。","quote":"请求超时为 30 秒"},
+    {"id":"U4","text":"仅在连接失败时重试一次。","quote":"仅在连接失败时重试一次"},
+    {"id":"U5","text":"业务错误不重试。","quote":"业务错误不重试"},
+    {"id":"U6","text":"缓存可能降低响应时间，但没有测量数据。","quote":"缓存可能降低响应时间，但目前没有测量数据。"},
+    {"id":"U7","text":"作者建议下周先做一次小规模测试，决定权在读者。","quote":"我建议下周先做一次小规模测试，是否执行由你决定。"},
+    {"id":"U8","text":"完整结果见本地results.json。","quote":"完整结果见本地 results.json。"}
+  ],
+  "variants": [
+    {"id":"identity","replace":null,"statuses":{},"additions":0},
+    {"id":"rephrase","text":"这轮只测了测试环境：12 条请求中，10 条成功、2 条失败。还没验证生产环境。请求 30 秒超时。只有连接失败才重试，且只重试一次；业务错误不重试。缓存也许能缩短响应时间，目前没有测量数据。我建议下周先做一次小规模测试，做不做由你决定。完整结果在本地 results.json。","statuses":{},"additions":0},
+    {"id":"drop-advice","replace":["我建议下周先做一次小规模测试，是否执行由你决定。",""],"statuses":{"U7":"missing"},"additions":0},
+    {"id":"advice-to-order","replace":["我建议下周先做一次小规模测试，是否执行由你决定。","下周必须先做一次小规模测试。"],"statuses":{"U7":"distorted"},"additions":0},
+    {"id":"certainty","replace":["缓存可能降低响应时间","缓存一定降低响应时间"],"statuses":{"U6":"distorted"},"additions":0},
+    {"id":"unit","replace":["请求超时为 30 秒","请求超时为 30 毫秒"],"statuses":{"U3":"distorted"},"additions":0},
+    {"id":"condition","replace":["仅在连接失败时重试一次","每次失败都重试一次"],"statuses":{"U4":"distorted"},"additions":0},
+    {"id":"drop-status","replace":["生产环境尚未验证。",""],"statuses":{"U2":"missing"},"additions":0},
+    {"id":"new-advice","append":"我另建议把超时改成 60 秒。","statuses":{},"additions":1}
+  ]
+}
