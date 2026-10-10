@@ -1,0 +1,22 @@
+[
+  {
+    "id": "humanizer-editor-v1",
+    "label": "候选 A · 清理冗余表达",
+    "repo": "https://github.com/op7418/Humanizer-zh",
+    "commit": "f4518a8eab97b8bfebc66a89d34320a89bef6930",
+    "preface": "采用以下编辑规则处理已有原稿。本轮目标是信息不变、整篇简洁、指向清楚。只修改有明确收益的地方，优先删除纯包装和完整重复、简化累赘句法；不要机械拆句或扩成更多列表。保留作者原有评价和所有限定，不添术语解释或背景。业务规则保持不变的表述必须指向业务方案，不能像在宣告你的改写操作。只输出终稿正文，不输出修改说明、保留清单、评分或自述。",
+    "files": [{"path": "SKILL.md", "strip_frontmatter": true}]
+  },
+  {
+    "id": "shuorenhua-editor-v1",
+    "label": "候选 B · 保守编辑原句",
+    "repo": "https://github.com/MrGeDiao/shuorenhua",
+    "commit": "f4d9b6aa4052fc2ec12321aca347255cc8dfc913",
+    "preface": "采用以下编辑规则处理已有原稿。本轮目标是信息不变、整篇简洁、指向清楚。只修改有明确收益的地方，优先删除纯包装和完整重复、简化累赘句法；不要机械拆句或扩成更多列表。保留作者原有评价和所有限定，不添术语解释或背景。业务规则保持不变的表述必须指向业务方案，不能像在宣告你的改写操作。只输出终稿正文，不输出修改说明、保留清单、评分或自述。",
+    "files": [
+      {"path": "SKILL.md", "strip_frontmatter": true},
+      {"path": "references/editing-guide.md"},
+      {"path": "references/examples.md"}
+    ]
+  }
+]

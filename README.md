@@ -238,3 +238,18 @@ python3 bench/rewrite.py score --out /path/to/private/new-run
 - [shuo-ren-hua 的评测代码](https://github.com/AmsonntagChow/shuo-ren-hua/blob/94a6f012b9669d901e81ee414dfbded24c5d032e/evals/run_eval.py)做匿名规则偏好对照，但判分提示要求只按单条规则判断，即使丢重要任务内容仍可偏好该版本。因此它的风格胜率不能当作信息保真通过率。
 
 对本项目的建议：先以冻结的 `Humanizer-zh` 和 `shuorenhua` 作候选对照，保持原稿、模型与保真判据一致，增加独立的整篇编辑质量验收。将“只交正文、删完整重复、简化累赘句法、只改有明确收益的地方”作为优先核验的机制；正常原文可不改，但记为无收益，不能靠原样返回通过简洁改善验收。前述业务规则不变的句子要保留业务信息并写清指向，不可套用“删编辑过程”整句删除。对实际会话的背景重复，需带上下文另测，不能偷改当前固定原稿的信息边界。这些仍是待验证建议，未加入已验收的产品规则。
+
+### 外部规则试跑与全文 review
+
+`bench/rewrite-editors.json` 冻结前两份外部规则的上述提交，并追加相同的简洁、保真、只交正文要求。没有安装外部 skill，也没有执行其中的脚本；规则仅作为模型输入。用原先那一篇开发样本各生成一次，Sonnet 生成、Opus 核对：原稿 860 字，候选 A（Humanizer-zh）926 字（+7.7%），候选 B（shuorenhua）876 字（+1.9%）。两篇均无模型信息变化标记，但都更长，简洁目标仍未达到，人工 review 尚未完成。这不是独立样本验证或效果排名。
+
+新增全文 review 页面，原稿和模型输出并排展示，保留表格和逐字文本；浅黄色只表示文字变化。模型意见在正文之外，零标记的候选也可以 review。分别判断简洁、好懂、信息与语气、是否采用，可补充备注。选择仅在当前浏览器暂存，导出的 JSON 绑定本轮配置和输出哈希，不包含原稿，也不自动写回试验。禁用 JavaScript 时仍能读到全部候选正文，交互需启用 JavaScript。
+
+```bash
+python3 bench/rewrite.py gen --dataset /path/to/private/single-case.json --conditions bench/rewrite-editors.json --out /path/to/private/editor-run --runs 1 --judges opus
+python3 bench/rewrite.py judge --out /path/to/private/editor-run
+python3 bench/rewrite.py score --out /path/to/private/editor-run
+python3 bench/render_editor_review.py --from /path/to/private/editor-run --out /path/to/private/editor-review --serve
+```
+
+生成的 `editor-review.html` 可独立打开。`--serve` 仅在 `127.0.0.1` 提供该页面，不开放私有目录；终端打印实际预览地址。页面及试跑内容保存在私有目录，不进入仓库。验证：`python3 -m unittest discover -s bench -p 'test_*.py'`；另在真实 Chrome 检查桌面及窄屏排版、候选切换、选择与备注刷新恢复、空 review 导出和测试选择清空。
