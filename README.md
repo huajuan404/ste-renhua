@@ -215,3 +215,26 @@ python3 bench/rewrite.py gen --dataset /path/to/private/single-case.json --condi
 python3 bench/rewrite.py judge --out /path/to/private/new-run
 python3 bench/rewrite.py score --out /path/to/private/new-run
 ```
+
+### 外部中文“说人话”与 Humanizer 调研（2026-10-10）
+
+检索方式：`npx -y skills find humanizer`、中文“说人话 / 去 AI 味 / humanizer-zh”搜索；阅读以下仓库的实际 `SKILL.md`，并核对候选的测试、评测源码或结果记录。此次只调研规则和作者发布的证据，没有安装这些技能，也没有把本地私有原稿发给外部服务进行复测。以下适配判断是静态分析，不是实测效果排名。
+
+| 候选及冻结源码 | 实际处理方式 | 对当前目标的适配判断 |
+|---|---|---|
+| [op7418/Humanizer-zh](https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md) | 保留独立信息、否定、范围、状态、归因和作者声音；仅修改具体表达问题；不强拆成要点；默认只交终稿，不交模式清单、自评分或编辑说明 | 优先作为整份规则对照。明确区分编辑过程残留与发布说明中的业务变更；不机械删词 |
+| [MrGeDiao/shuorenhua](https://github.com/MrGeDiao/shuorenhua/blob/f4d9b6aa4052fc2ec12321aca347255cc8dfc913/SKILL.md) | 先限定可编辑动作：删纯包装、删完整重复、简化累赘句法；保留实词、限定、关系、责任主体和判断；不默认概括重写；默认只交正文 | 优先作为保守编辑对照。最值得借鉴的是编辑动作边界；正常文本允许不改，但不能把不改计为改善 |
+| [holygeek00/humanizer-zh-cn](https://github.com/holygeek00/humanizer-zh-cn/blob/a54f7d5fed35f1917dc0a87ffd4c25b4430ae4bd/SKILL.md) | 从黑话中找主体、动作、对象、结果和依据；核对事实与语气；嵌入模式只输出终稿，粘贴模式默认初稿、审校、终稿 | 可借检查主体的做法；默认交付过多。部分示例删除缺依据的论断或添加“原文没有说明”，与我们的原稿信息边界不同，不能照搬 |
+| [AmsonntagChow/shuo-ren-hua](https://github.com/AmsonntagChow/shuo-ren-hua/blob/94a6f012b9669d901e81ee414dfbded24c5d032e/SKILL.md) | 平常词、稳定术语、完整句子、结论先行；允许解释性的长句，反对短句排比；命令只交改写结果 | 可借句子完整与术语一致；固定分句上限、禁止比喻等规则较强。部分教学示例增加原文未给的数据或关系，不能当保真答案 |
+| [ksufer/humanizer-zh-skill](https://github.com/ksufer/humanizer-zh-skill/blob/b6fd6105cdab487814bbe479735b897f3461573e/SKILL.md) | 先区分博客、新闻、公文、评论；列事实清单、保真校验；博客路线主动“注入灵魂”；默认全文加 3–8 条改动说明 | 文体区分有用；主动注入观点及默认改动清单不适合当前工程回复任务，且“保持篇幅量级”不要求变短 |
+| [ai-zixun/humanizer-zh](https://github.com/ai-zixun/humanizer-zh/blob/main/SKILL.md)（读取于调研日） | 先看整篇主线、合并弱句、减少列表堆砌；允许长短句混用；默认先交改写，解释按需；可选作者声线 | 整篇结构检查有用；深改可“补足因果关系”，术语替换及作者声线覆盖规则不宜直接用于保真改写 |
+| [blader/humanizer](https://github.com/blader/humanizer/blob/d4b81278e6604e237bf32f0f7ce5c217aee94269/SKILL.md)（英文上游） | 识别铺垫、膨胀、排版模板、草稿残留；新增对“读者已知背景”的检查，先给决定；对照来源检查信息 | 可借“每句是否增加读者未知信息”的整篇检查；需提供真实会话上下文，不能在孤立原稿中猜读者已知什么。允许新增观点的边界比我们的规则宽 |
+| [hardikpandya/stop-slop](https://github.com/hardikpandya/stop-slop/blob/8da1f030185bdfe8471220585162991eaeb970e9/SKILL.md)（英文） | 删填充、信任读者、减少手把手解释；交付前自检与评分 | 可借直接表达与减少导航说明；“删除所有副词 / 每句都要人作主语”等绝对规则会误伤程度、限定和技术施事者，不照搬 |
+
+外部验收证据也要区分类型：
+
+- [Humanizer-zh 的测试说明](https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/tests/README.md)提供 18 条语义边界案例及 Markdown 结构保护脚本。作者报告同模型单次运行、人工核对及两篇长文检查，同时明确没有固定采样参数和跨模型验证；结构脚本通过不证明语义保真。
+- [shuorenhua v2.5.0 发布验收记录](https://github.com/MrGeDiao/shuorenhua/blob/f4d9b6aa4052fc2ec12321aca347255cc8dfc913/evals/results-v2.5.0.md)公开 Claude 136 条、Grok 56 条有效输出的范围、候选哈希和逐题汇总入口。编辑质量分别为 better/same/worse = 26/110/0 与 13/43/0；判分由 Codex 和独立 Agent 复核，不是人类编辑共识。大量 same 表明它选择保守编辑，不能宣称每篇都有简洁收益，也不宣称普遍优于简单提示。
+- [shuo-ren-hua 的评测代码](https://github.com/AmsonntagChow/shuo-ren-hua/blob/94a6f012b9669d901e81ee414dfbded24c5d032e/evals/run_eval.py)做匿名规则偏好对照，但判分提示要求只按单条规则判断，即使丢重要任务内容仍可偏好该版本。因此它的风格胜率不能当作信息保真通过率。
+
+对本项目的建议：先以冻结的 `Humanizer-zh` 和 `shuorenhua` 作候选对照，保持原稿、模型与保真判据一致，增加独立的整篇编辑质量验收。将“只交正文、删完整重复、简化累赘句法、只改有明确收益的地方”作为优先核验的机制；正常原文可不改，但记为无收益，不能靠原样返回通过简洁改善验收。前述业务规则不变的句子要保留业务信息并写清指向，不可套用“删编辑过程”整句删除。对实际会话的背景重复，需带上下文另测，不能偷改当前固定原稿的信息边界。这些仍是待验证建议，未加入已验收的产品规则。
