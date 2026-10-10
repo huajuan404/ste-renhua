@@ -201,3 +201,17 @@ ASD-STE100 是 ASD（欧洲航空航天、安全与防务工业协会）发布�
 ## 许可
 
 [MIT](LICENSE)
+
+### 简洁改写候选
+
+用户复核第一篇“一句话提示”改写后拒绝接受：非空白字数从 860 增至 970（+12.8%），且原稿中“业务规则不变”的句子改写后容易被误读为改写操作声明。这是整篇阅读反馈，不等同于 D01 的“p”含义变化裁决；其他争议仍未裁决。
+
+下一轮验收以“信息不变、表达简洁、指向清楚”为目标：不能靠拆句、增加列表或反复解释使全文变长；不需要改的原句可以保留；原稿中的业务规则保持不变，不能表述成模型在声明自己的改写步骤。原稿已有的业务信息仍需保留。`bench/rewrite-concise.json` 包含两版待验证候选，先在这一篇开发样本上试跑，不能作为独立样本验证或已可发布的规则。旧试验的提示、输出、判分全部保留。
+
+本篇开发试跑结果（Sonnet 生成、Opus 保真判分）：第一版逐字返回 860 字原稿，信息判分通过但无表达改善；第二版 848 字，比原稿短 1.4%，但被标出两处变化：删除原有的价值评价、删除近似量级限定。两个候选都未通过“更简洁且信息不变”的验收，未推广到其他样本；第二版的模型标记未经人工裁决。开发样本上的一次试跑不能证明泛化效果。
+
+```bash
+python3 bench/rewrite.py gen --dataset /path/to/private/single-case.json --conditions bench/rewrite-concise.json --conds concise-probe-v2 --out /path/to/private/new-run --runs 1 --judges opus
+python3 bench/rewrite.py judge --out /path/to/private/new-run
+python3 bench/rewrite.py score --out /path/to/private/new-run
+```
