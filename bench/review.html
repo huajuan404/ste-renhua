@@ -1,4 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>信息变化 · 人工裁决</title></head><body>
 <div id="rewrite-review">
+__STATIC_REVIEW__
+<div id="review-interactive" hidden>
   <div class="viz-row"><h2>需要你裁决的信息变化</h2><span class="viz-badge" id="review-model">模型标记 · 尚未确认</span></div>
   <div id="review-summary" class="text-muted"></div>
   <div class="nav nav-pills" role="tablist" aria-label="裁决类型">
@@ -42,9 +46,34 @@
   <div class="viz-row"><button class="btn" type="button" id="review-results">汇总裁决</button><button class="btn btn-primary" type="button" id="review-send">把裁决发给 Codex</button></div>
   <div id="review-message" aria-live="polite"></div>
   <label id="review-result-label" class="form-label" hidden>裁决记录（可复制）<textarea id="review-result" class="form-control" rows="6" readonly></textarea></label>
+  </div>
   <script type="application/json" id="rewrite-review-data">__REVIEW_DATA__</script>
 </div>
 <style>
+:root { --foreground:#202a35;--yellow:#f3c654; }
+* { box-sizing:border-box; }
+body { margin:0;background:#f5f7f9;font:16px/1.7 system-ui,-apple-system,sans-serif;color:var(--foreground); }
+#rewrite-review { max-width:1400px;margin:auto;padding:28px 40px; }
+h2 { font-size:26px;margin:0 0 12px; } h3 { font-size:15px;color:#586573;margin:0 0 10px; }
+.viz-row,.nav { display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
+.nav { border-bottom:1px solid #cdd5dd;margin:20px 0; }
+button,select,textarea { font:inherit; }
+button { cursor:pointer;background:white;border:1px solid #b7c3ce;border-radius:5px;padding:7px 14px;color:inherit; }
+button.active,button[aria-pressed="true"] { background:#193e62;color:white;border-color:#193e62; }
+button:disabled { opacity:.4;cursor:default; }
+select { display:block;width:100%;max-width:850px;padding:9px;border:1px solid #b7c3ce;background:white;margin:6px 0 16px; }
+textarea { display:block;width:100%;max-width:850px;padding:10px;border:1px solid #b7c3ce;background:white;border-radius:4px; }
+.review-columns>section { background:white;padding:18px;border-top:3px solid #b8c8d6; }
+.review-columns>section+section { border-top-color:#d2af53; }
+.text-muted,.viz-badge,#review-progress { color:#586573;font-size:14px; }
+#review-reason { background:#fff4d8;border-left:3px solid #d2af53;padding:12px 16px; }
+#review-position { min-width:80px; }
+hr { border:0;border-top:1px solid #cdd5dd;margin:22px 0; }
+summary { cursor:pointer;color:#345879; }
+#review-static article { margin:28px 0;border-bottom:1px solid #cdd5dd;padding-bottom:20px; }
+#review-message { margin:10px 0; }
+@media(max-width:600px) { #rewrite-review { padding:16px; } h2 { font-size:22px; } }
+
 #rewrite-review { color: var(--foreground); }
 #rewrite-review .review-columns { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin:16px 0; }
 #rewrite-review .review-text { white-space:pre-wrap;overflow-wrap:anywhere; }
@@ -104,7 +133,9 @@
   function snapshot(){return {manifest_hash:data.manifest_hash,review_data_hash:data.review_data_hash,
     judgments:data.issues.filter(x=>choices[x.id]||notes[x.id]).map(x=>({id:x.id,decision:choices[x.id]||'pending',note:notes[x.id]||''})),
     reading:data.cases.filter(x=>reading[x.id]).map(x=>({case:x.id,preference:reading[x.id]}))};}
+  const storageKey='rewrite-review:'+data.review_data_hash;
   function save(){
+    try { localStorage.setItem(storageKey,JSON.stringify({modelContent:snapshot(),privateContent:{selected,readingCase}})); } catch(error) { $('review-message').textContent='浏览器暂存不可用，请复制汇总裁决保存。'; }
     const api=window.openai;
     if(api&&typeof api.setWidgetState==='function')Promise.resolve(api.setWidgetState({modelContent:snapshot(),privateContent:{selected,readingCase}})).catch(()=>{$('review-message').textContent='自动保存未成功，可用“汇总裁决”复制记录。';});
   }
@@ -165,7 +196,19 @@
     catch(error){$('review-result-label').hidden=false;progress();$('review-message').textContent='发送未成功，可复制裁决记录。';}
     finally{$('review-send').disabled=false;}
   });
-  render();renderReading();applyState(window.openai?.widgetState);
+  for(const [tab,panel] of [['review-info-tab','review-info'],['review-reading-tab','review-reading']]) {
+    $(tab).addEventListener('click',()=>{
+      for(const [other,content] of [['review-info-tab','review-info'],['review-reading-tab','review-reading']]) {
+        $(other).setAttribute('aria-selected',String(tab===other));$(other).classList.toggle('active',tab===other);$(content).hidden=panel!==content;
+      }
+    });
+  }
+  render();renderReading();
+  try { applyState(JSON.parse(localStorage.getItem(storageKey))); } catch(error) {}
+  applyState(window.openai?.widgetState);
+  $('review-interactive').hidden=false;$('review-static').hidden=true;
   window.addEventListener('openai:set_globals',event=>{if(event.detail?.globals?.widgetState)applyState(event.detail.globals.widgetState);});
 })();
 </script>
+
+</body></html>
