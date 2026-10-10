@@ -149,7 +149,7 @@ def freeze(a):
         raise ValueError('写法 id 重复')
     candidate = {'version': VERSION, 'cases': cases,
                  'conditions': [{**c, 'resolved_append': engine.condition_text(c)} for c in conditions],
-                 'runs': a.runs, 'judges': a.judges, 'generator': engine.GEN_MODEL,
+                 'runs': a.runs, 'judges': a.judges, 'generator': getattr(a, 'generator', engine.GEN_MODEL),
                  'generation_prompt': GEN_PROMPT, 'judge_prompt': JUDGE_PROMPT}
     candidate['hash'] = digest(candidate)
     path = Path(a.out) / 'manifest.json'
@@ -210,7 +210,8 @@ def generate(a):
             text, meta = case['text'], {'models': ['identity']}
         else:
             text, meta = engine.retry(lambda: engine.call(m['generator'], m['generation_prompt'].format(
-                reader=case.get('reader', engine.DEFAULT_READER), text=case['text']), append=cond['resolved_append']))
+                reader=case.get('reader', engine.DEFAULT_READER), text=case['text']),
+                system=cond.get('system'), append=cond['resolved_append']))
         if not text.strip():
             raise ValueError('空改写稿')
         engine.save(path, {'case': case['id'], 'cond': cond['id'], 'run': i, 'text': text,
@@ -368,6 +369,7 @@ def main():
     gen.add_argument('--conds', nargs='+')
     gen.add_argument('--judges', nargs='+', choices=['codex', 'opus'], default=['codex', 'opus'])
     gen.add_argument('--runs', type=int, default=3)
+    gen.add_argument('--generator', choices=['sonnet', 'opus', 'haiku'], default=engine.GEN_MODEL)
     for name, command in [('gen', gen), ('calibrate', cal), ('judge', sub.add_parser('judge')), ('score', sub.add_parser('score'))]:
         command.add_argument('--out', required=True)
         command.add_argument('--workers', type=int, default=3)

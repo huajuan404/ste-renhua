@@ -268,3 +268,26 @@ python3 bench/render_editor_review.py --from /path/to/private/editor-run --out /
 | A3，追加篇二 | 1556 | 1551 | -0.3% | 0 |
 
 均为 Sonnet 生成、Opus 核对，保留 identity 原稿对照。保真模型检查通过，但改动主要是少量删词和句法调整，压缩收益仍然弱；尚无新一轮人工 review，不能称为明显改善或已验收规则。追加样本此前已用于其他试验，因此本轮仍是开发试跑，不是封存集验证。没有覆盖旧配置、运行结果或用户选择；私有目录分别为 `real/rewrite-editor-a2/`、`real/rewrite-editor-a3/` 和 `real/rewrite-editor-a3-followup/`。后两组全文 HTML 已在实际 Chrome 检查正文及候选切换；多篇页面以原稿首句区分，提示来源区分外部规则与本地提示。
+
+### 内部预筛与继续优化
+
+用户明确要求：开发者已经判为未达标的候选，不再交人工 review。后续先做内部预筛，不用微小字数变化证明改善。
+
+`bench/screen_rewrite.py` 先比较 Markdown 渲染后的非空白文字，避免删标题符号、表格分隔线制造压缩收益。当前开发门槛为缩短至少 8%，这是减少无效 review 的内部筛选值，未经人类验证，不能作为通用的编辑质量标准。达标后才用独立 Sonnet 检查全部信息单元和全文；有任何信息变化就淘汰。再匿名比较清楚、自然、简洁和整体偏好：清楚或自然变差，或简洁与偏好没有胜出，也不交 review。通过后仍需完成主判分器 Opus 保真检查；模型一致不等于人类验收。
+
+筛选冻结原稿运行哈希、规则、模型和渲染器版本，记录所有失败；复用结果也重新验证引文及匿名顺序。检查失败时汇总标为未完成，不能留下旧的成功状态。生成器支持 `--generator sonnet|opus|haiku`，条件支持显式 `system`；两者都写入冻结配置，恢复运行不得偷换模型或编辑角色。
+
+```bash
+python3 bench/rewrite.py gen --dataset /path/to/private/dataset.json --conditions bench/rewrite-editor-a6.json --generator opus --out /path/to/private/new-run --runs 1 --judges opus
+python3 bench/screen_rewrite.py --from /path/to/private/new-run
+# 仅在内部筛选找到候选后继续主判分；否则不制作新人工 review。
+python3 bench/rewrite.py judge --out /path/to/private/new-run
+```
+
+固定原先六篇开发原稿，每篇每条件一次，保留原稿对照：A3 更换 Opus；A4 强调整段压缩；A5 指定中文编辑角色并加压缩示例；A6 先合并重复再重组。四轮共 24 篇候选全部未达压缩门槛，可读文字最多减少 4.7%，部分反而变长，因此没有调用后续保真判分，也没有新人工 review。不能称为保真通过或改善通过。配置及完整输出分别保存在本机私有 `real/rewrite-editor-a3-opus/` 至 `real/rewrite-editor-a6-opus/`，旧试验不覆盖。
+
+A6 另换 Haiku 在相同六篇上各跑一次，实际模型记录为 `claude-haiku-5-5`，最多缩短 1.8%，仍全未达门槛；保存在 `real/rewrite-editor-a6-haiku/`。此前四轮实际生成模型均为 `claude-opus-5-5`。本轮整篇候选合计 30 篇，全部记录且全部未晋级，不从失败中挑一篇请用户验收。8% 门槛只判压缩是否值得继续检查，未评估被拦下候选是否有其他阅读收益；不能据此证明其整体编辑质量都更差。
+
+另做局部编辑机制诊断：首篇试提六处替换，可读文字减少 5.2%，但其中一处把“两种 prompt 的比较”删成仅“样本相同”，直接淘汰。修正提示后按原顺序测试全部六篇，减少约 0.8%–2.1%，仍全部淘汰。该机制仅在仓库外私有脚本试验，未加入正式改写运行器。
+
+用两篇明确构造的对照检查机制：重复原文在 A5 下可读文字减少 70.5%，独立 Sonnet 与主判分 Opus 均无信息变化标记，匿名编辑检查偏好候选；已经简洁的对照原样返回。两篇及其原稿对照共完成四次 Opus 主判分。对照仅说明模型能删明确重复、筛选路径能运行，不证明真实六篇无可压缩空间，也不算真实回复改进。输入、全部结果和模型记录留在私有 `real/rewrite-controls-v1/`，没有用合成成功替代真实失败。

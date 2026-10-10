@@ -95,6 +95,20 @@ class RewriteTests(unittest.TestCase):
             draft = rewrite.engine.load(Path(a.out) / 'gen/test__identity__r1.json')
             self.assertEqual(draft['text'], self.case['text'])
 
+    def test_generator_is_used_frozen_and_cannot_change_during_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = self.args(Path(directory))
+            a.generator = 'opus'
+            rewrite.engine.save(Path(a.conditions), [{'id': 'none', 'system': '中文文字编辑。'}])
+            with patch.object(rewrite.engine, 'call', return_value=(self.case['text'], {'models':['opus']})) as model:
+                rewrite.generate(a)
+                self.assertEqual(model.call_args.args[0], 'opus')
+                self.assertEqual(model.call_args.kwargs['system'], '中文文字编辑。')
+            self.assertEqual(rewrite.manifest(a.out)['generator'], 'opus')
+            a.generator = 'sonnet'
+            with self.assertRaisesRegex(ValueError, '运行配置改变'):
+                rewrite.generate(a)
+
 
 if __name__ == '__main__':
     unittest.main()
